@@ -53,34 +53,70 @@ sequence must show the real intra-sequence dip, not $0).
 
 ## Current results
 
-Ran `scripts/sweep_params.py` across GC/CL/ES/NQ daily bars
-(`range_max_pct` in 0.03-0.15, `range_min_bars` in 5-15). Findings, all
-confirmed against real data rather than assumed:
+### Getting more data first
 
-- **CL**: starts producing signals at `range_max_pct=0.12` (1 signal) and
-  `0.15` (2 signals) — both losses so far in this window.
-- **GC**: exactly one combination (`range_max_pct=0.08`) produces a signal
-  (a win, ~$21.5k on 1 contract) — `0.05` and everything above `0.08`
-  produce none.
-- **ES / NQ**: zero signals across the *entire* grid. Diagnosed directly
-  (not just assumed): `indicators.wyckoff.detect_trading_ranges` **does**
-  find ranges for both (1-7 of them depending on threshold) — the
-  confluence chain in `strategy/signals.py` (breakout -> impulse leg ->
-  pullback into the Fib zone -> confirming swing without re-entering the
-  range) just never completes for any of them in this dataset. That's the
-  strategy rule being strict, not a bug in range detection.
-- **Why signal counts aren't monotonic in `range_max_pct`** (e.g. GC finds
-  a signal at 0.08 but none at 0.12/0.15, even though *more* ranges exist
-  at those looser thresholds): loosening the threshold changes which
-  specific contiguous runs of bars qualify as "contracted" — previously
-  separate short ranges can merge into fewer, longer ones as the bar-level
-  condition relaxes. More/fewer ranges, and *different* ranges entirely,
-  is expected behavior for a threshold-based contiguous-run detector, not
-  a defect.
+Single-contract history is capped by how long the current front-month
+contract has actually been listed — asking for more `duration` doesn't
+conjure more real bars (IBKR silently truncates rather than erroring).
+Verified directly (`scripts/fetch_all_instruments.py --force`, now
+requesting `"2 Y"` for both timeframes): daily bars nearly doubled (GC/CL/ES
+~450-500 bars, up from ~250; NQ's current contract still caps at ~250 — it
+simply hasn't been listed longer), and 1-hour bars grew ~8-10x (1270-2333
+bars, up from ~238). Getting meaningfully more than that requires stitching
+multiple historical contract-months into a continuous series, which is
+still intentionally not built — `data/cache.py`'s contract-month keying
+was designed to support adding that later, but it's a real chunk of new
+work (roll-date detection across contracts, back-adjustment), not a
+parameter tweak.
 
-Conclusion so far: the confluence rule as written is quite selective (1-2
-signals per instrument across ~250 daily bars, all within a narrow slice
-of thresholds) and needs either looser confluence conditions or a longer
-lookback / more instruments to evaluate meaningfully — one or two trades
-per instrument is not enough to trust any win rate or profit factor
-number yet.
+Added `config/strategies/{GC,CL,ES,NQ}_1hour.yaml` (same starting
+parameters as the daily configs) so `scripts/sweep_params.py` now searches
+both timeframes — it already picks up every `*.yaml` under
+`config/strategies/` automatically.
+
+### Sweep findings (`range_max_pct` 0.03-0.15, `range_min_bars` 5-15)
+
+1-hour bars give a much larger, more meaningful sample than daily did:
+
+- **CL 1-hour**, `range_max_pct=0.08`: 7 signals, 43% win rate, profit
+  factor 7.3, +$9,276 total, max drawdown $762. Consistent across
+  `range_min_bars` 5/8/10 (identical results — the qualifying runs are all
+  longer than 10 bars already); `range_min_bars=15` narrows to 6 signals
+  with an even better profit factor (10.0). The most promising combination
+  found so far, though 6-7 trades is still a small sample.
+- **GC 1-hour**, `range_max_pct=0.03`: 9-12 signals depending on
+  `range_min_bars`, ~40-44% win rate, profit factor ~4-5, +$41k-55k total —
+  the largest sample of any combination, and still solidly positive.
+  `range_max_pct=0.05` (6-7 signals) is markedly worse (profit factor
+  ~1.2-1.5), so GC's edge looks threshold-sensitive rather than robust
+  across nearby settings — worth treating with some skepticism until
+  tested on more history.
+- **ES 1-hour**: only found at `range_max_pct=0.03` (3-4 signals), and
+  every result there has a profit factor **below 1** (net losing) — no
+  configuration found for ES looks tradeable yet.
+- **NQ 1-hour**, `range_max_pct=0.03`: 2-3 signals, 100% win rate — take
+  this with real skepticism, not confidence: a 100% win rate on 2-3 trades
+  is not a meaningful sample, it's as likely to be luck as edge.
+- Daily-bar results are still in the sweep for comparison but are weaker
+  signal on their own now that hourly gives more trades to look at — see
+  `output/param_sweep.csv` for the full table (`timeframe` column
+  distinguishes them).
+- The non-monotonic signal counts as `range_max_pct` loosens (e.g. GC
+  1-hour: 12 signals at 0.03, 0 at 0.08) are still explained the same way
+  as before: loosening the threshold changes *which* contiguous bar-runs
+  qualify as contracted — it merges some previously-separate ranges rather
+  than strictly finding more of them. Expected behavior for a threshold
+  based contiguous-run detector, not a defect.
+
+### Conclusion so far
+
+CL and GC both show a real, if modest, edge on 1-hour bars at specific
+thresholds (6-12 trades, positive profit factor). ES shows a consistent
+loss. NQ's sample is too small to conclude anything. None of these sample
+sizes (single digits to low teens) are large enough to commit real capital
+against — the natural next steps are (a) more history via continuous-
+contract stitching, since single-contract 1-hour data still only spans
+~1-1.5 years, and/or (b) sweeping `retracement_zone` /
+`target_extension_ratio` around the CL/GC thresholds that already work, to
+see how sensitive the edge is to entry/exit timing rather than just
+whether a range is found at all.

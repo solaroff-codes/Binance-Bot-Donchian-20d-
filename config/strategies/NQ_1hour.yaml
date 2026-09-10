@@ -1,0 +1,16 @@
+# Confluence strategy parameters for NQ (E-mini Nasdaq-100 futures), 1-hour bars.
+# Same starting values as NQ_1day.yaml — see GC_1hour.yaml for the note on
+# why hourly params aren't yet separately tuned.
+
+symbol: NQ
+timeframe: "1 hour"
+
+fractal_n: 2
+
+range_window: 20
+range_max_pct: 0.05
+range_min_bars: 10
+
+retracement_zone: [0.5, 0.786]
+target_extension_ratio: 1.618
+stop_buffer_pct: 0.005

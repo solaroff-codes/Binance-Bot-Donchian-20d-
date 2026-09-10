@@ -51,10 +51,10 @@ def run_param_sweep(
         try:
             _, metrics = run_backtest(config, start_date, end_date)
         except FileNotFoundError as exc:
-            rows.append({"symbol": config.symbol, "error": str(exc)})
+            rows.append({"symbol": config.symbol, "timeframe": config.timeframe, "error": str(exc)})
             continue
 
-        row = {"symbol": config.symbol}
+        row = {"symbol": config.symbol, "timeframe": config.timeframe}
         for name in param_grids:
             row[name] = getattr(config, name)
         row.update(metrics)

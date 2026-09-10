@@ -1,0 +1,19 @@
+# Confluence strategy parameters for GC (gold futures), 1-hour bars.
+# Same starting parameter values as GC_1day.yaml, applied to the higher-
+# frequency timeframe to get a larger trade sample. Not yet tuned for
+# intraday behavior specifically (e.g. range_window/min_bars in hourly
+# bars cover a much shorter wall-clock span than the same values in daily
+# bars — worth revisiting once there's enough of a trade sample to judge).
+
+symbol: GC
+timeframe: "1 hour"
+
+fractal_n: 2
+
+range_window: 20
+range_max_pct: 0.05
+range_min_bars: 10
+
+retracement_zone: [0.5, 0.786]
+target_extension_ratio: 1.618
+stop_buffer_pct: 0.005
