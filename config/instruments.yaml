@@ -4,6 +4,22 @@
 # secType is always "FUT" for these — index/commodity futures, not the
 # underlying cash instrument. Add new instruments here rather than hardcoding
 # them in code.
+#
+# tick_size / tick_value are the exchange-minimum price increment and its
+# dollar value (tick_size * multiplier) — used by backtest/engine.py's
+# CostModel to model per-fill slippage in realistic backtests. Standard
+# exchange-published values, not something this project measures.
+#
+# micro_multiplier / micro_tick_value: the corresponding CME/COMEX/NYMEX
+# Micro contract's point value (MGC/MCL/MES/MNQ) — 1/10th the full contract
+# for GC/CL, 1/10th for ES and NQ too. We don't fetch separate market data
+# for the micro symbols: micros settle against the same underlying
+# price/index as the full-size contract (MES tracks the same S&P 500
+# level ES does, etc.), so backtests reuse the full contract's cached
+# price series and just apply the micro's multiplier/tick for cost and
+# position-sizing purposes. That's a real, standard practical
+# approximation (basis differences between full and micro are not
+# modeled), not literal micro-contract tick data.
 
 GC:
   description: "Gold futures"
@@ -11,6 +27,10 @@ GC:
   exchange: COMEX
   currency: USD
   multiplier: "100"
+  tick_size: 0.10
+  tick_value: 10.00
+  micro_multiplier: 10
+  micro_tick_value: 1.00
 
 CL:
   description: "Crude oil futures (WTI)"
@@ -18,6 +38,10 @@ CL:
   exchange: NYMEX
   currency: USD
   multiplier: "1000"
+  tick_size: 0.01
+  tick_value: 10.00
+  micro_multiplier: 100
+  micro_tick_value: 1.00
 
 ES:
   description: "E-mini S&P 500 futures"
@@ -25,6 +49,10 @@ ES:
   exchange: CME
   currency: USD
   multiplier: "50"
+  tick_size: 0.25
+  tick_value: 12.50
+  micro_multiplier: 5
+  micro_tick_value: 1.25
 
 NQ:
   description: "E-mini Nasdaq-100 futures"
@@ -32,5 +60,39 @@ NQ:
   exchange: CME
   currency: USD
   multiplier: "20"
+  tick_size: 0.25
+  tick_value: 5.00
+  micro_multiplier: 2
+  micro_tick_value: 0.50
+
+SI:
+  description: "Silver futures"
+  secType: FUT
+  exchange: COMEX
+  currency: USD
+  multiplier: "5000"
+  tick_size: 0.005
+  tick_value: 25.00
+  # No true 1/10th "micro" silver is available on this account (checked
+  # SIL on COMEX/NYMEX/CME directly — 0 contracts found). "QI" (mini
+  # silver, 2500 oz) exists and is half-size, not tenth-size — used here
+  # as the best available smaller contract, not a real micro.
+  micro_multiplier: 2500
+  micro_tick_value: 12.50
+
+BZ:
+  description: "Brent crude oil futures (ICE Brent financial future, cleared via NYMEX)"
+  secType: FUT
+  exchange: NYMEX
+  currency: USD
+  multiplier: "1000"
+  tick_size: 0.01
+  tick_value: 10.00
+  # No smaller-size Brent contract is available on this account at all
+  # (checked BZ/MBZ on NYMEX and ICEEU — nothing smaller than full-size
+  # found). micro_multiplier equals the full multiplier here — there is
+  # no size reduction to apply, unlike the other five instruments.
+  micro_multiplier: 1000
+  micro_tick_value: 10.00
 
 # Crypto instruments intentionally omitted — separate future phase.

@@ -1,12 +1,13 @@
 # Quant Research — Wyckoff / Fibonacci / Elliott Wave + Trendlines
 
 Personal research project: a modular system for backtesting discretionary-
-turned-systematic strategies across gold futures (GC, COMEX), crude oil
-futures (CL, NYMEX), and equity index futures (ES, NQ, CME). Two
-independent strategies live here — a Wyckoff accumulation/distribution +
-Fibonacci retracement + Elliott Wave confluence rule, and a multi-timeframe
-trendline bounce/break cascade (monthly→weekly→daily→4h→1h). Data and
-execution via Interactive Brokers. No crypto for now.
+turned-systematic strategies across gold (GC, COMEX), silver (SI, COMEX),
+WTI crude oil (CL, NYMEX), Brent crude oil (BZ, NYMEX), and equity index
+futures (ES, NQ, CME). Two independent strategies live here — a Wyckoff
+accumulation/distribution + Fibonacci retracement + Elliott Wave confluence
+rule, and a multi-timeframe trendline bounce/break cascade
+(monthly→weekly→daily→4h→1h). Data and execution via Interactive Brokers.
+No crypto for now.
 
 ## Layout
 
@@ -26,14 +27,16 @@ execution via Interactive Brokers. No crypto for now.
   cascade (`trendline_signals.py`, configs in
   `config/trendline_strategies/*.yaml`) — see `strategy/README.md`
 - `backtest/` — trade simulation + performance metrics (`engine.py`,
-  shared by both strategies), a runner that sweeps multiple instrument
-  configs into one comparable summary (`runner.py`), and a parameter-grid
-  sweep utility (`sweep.py`)
+  shared by both strategies, with realistic `CostModel`/`PositionSizer`
+  support), a trailing-stop exit variant (`trailing.py`), a runner that
+  sweeps multiple instrument configs into one comparable summary
+  (`runner.py`), and a parameter-grid sweep utility (`sweep.py`)
 - `paper/` — live paper-trading executor. Phase 3, not yet built.
 - `scripts/` — runnable entry points: `fetch_all_instruments.py`,
   `build_continuous_contracts.py`, `run_strategy.py`, `run_backtest.py`,
-  `run_trendline_backtest.py`, `sweep_params.py`, `sweep_entry_exit.py`,
-  plus smoke-test/sanity scripts
+  `run_trendline_backtest.py`, `run_realistic_backtest.py`,
+  `sweep_params.py`, `sweep_entry_exit.py`, `sweep_trendline_params.py`,
+  `run_combined_confluence.py`, plus smoke-test/sanity scripts
 - `tests/` — automated tests (pytest) — one file per module
 
 ## Setup
@@ -98,39 +101,52 @@ python scripts\run_trendline_backtest.py              # trendline cascade: every
 ## Status
 
 Data connector, indicators, both strategies' signal generation, the shared
-backtest engine, parameter-grid sweeping, and continuous-contract
-stitching are all built and verified against real cached data (43 unit
-tests passing; see each folder's README for details, especially
-`backtest/README.md`'s "Current results" and "Trendline cascade strategy
-results" sections for the full findings).
+backtest engine (now with realistic transaction costs and dollar-risk
+position sizing), a trailing-stop exit variant, and continuous-contract
+stitching are all built and verified against real cached data (49 unit
+tests passing; see each folder's README for details).
 
-Headline findings so far, across both strategies:
-- **Confluence strategy:** CL shows the most consistent edge — profit
-  factor ~9-14 at `range_max_pct=0.08` on 1-hour bars, confirmed across
-  both single-contract and continuous-contract data independently. GC
-  looks promising but doesn't fully replicate across datasets. ES has not
-  produced a tradeable configuration in any test. NQ is promising but
-  under-sampled.
-- **Trendline cascade strategy:** a different pattern — ES and NQ look
-  strongest here (profit factor 2.4-2.6, 17-25 trades), while GC is
-  essentially breakeven (profit factor 0.98) despite being one of the
-  confluence strategy's better instruments. Building and testing this
-  strategy also surfaced a real bug in `backtest/engine.py`: overlapping
-  signals were being double-counted as independent trades, invisible
-  until a strategy fired often enough to actually overlap. Now fixed
-  (`enforce_single_position`, default on).
+**Read `backtest/README.md`'s "The honest backtest" section first** — it
+supersedes every profit-factor/win-rate figure reported anywhere else in
+this project. Every earlier sweep result (both strategies) had zero
+transaction costs, implicit 1-contract-per-trade sizing regardless of
+account size, and reported the best cell of a large parameter sweep
+without ever validating it on held-out data. Once realistic costs,
+$10,000-account dollar-risk position sizing (1-2% per trade), and a
+genuine train/test split were added:
 
-None of these sample sizes (17-54 trades in the best cells) are yet large
-enough for a real capital-allocation decision.
+- **Four of six instruments (GC, NQ, SI, BZ) cannot be traded at all** at
+  1-2% risk on a $10k account — even the cheapest signal each one ever
+  produced needs 2.1-8.0% of the account for a single contract of the
+  smallest available version (checked directly against IBKR: SI has no
+  true micro contract, BZ has no smaller contract at all). This is a
+  structural mismatch between the trendline strategy's stop placement and
+  a small account, not a parameter-tuning gap.
+- **CL is the only instrument with a real out-of-sample test, and it lost
+  money in every configuration tried** (both risk levels, both exit
+  types) — a sharp contrast to its healthy-looking training-period numbers
+  (profit factor 1.5-3.2). 1-2 test trades is too small to call the edge
+  fake, but it is conclusively not confirmed.
+- **ES only sizes at 2% risk and is marginal-to-losing even in-sample**
+  (profit factor 0.88-1.01).
+- **A trailing stop did not outperform a fixed R-multiple target** in any
+  head-to-head comparison run — it exited winners earlier without
+  meaningfully reducing drawdown, and in one case was net losing where the
+  fixed-target version was profitable.
 
-Not yet built: a parameter-grid sweep of the trendline strategy's own
-parameters (touch tolerance, break buffer, target R-multiple, which
-timeframes set bias vs trigger), running either strategy against
-continuous-contract data for the newer monthly/weekly/4h timeframes, true
-historical volume-crossover rolls for continuous stitching (currently a
-simpler fixed days-before-expiry rule — documented tradeoff in
-`data/continuous.py`), and literal-price (non-back-adjusted) continuous
-series for anything that needs real historical price levels rather than
-point-difference-preserving adjusted ones. Paper trading (`paper/`) is
-phase 3 and intentionally untouched until a config is validated through
-backtesting.
+Everything above this in the project's history — the "PF 9-45" sweep
+results, the confluence-strategy "PF ~9-14" figures, the combined
+Wyckoff-confluence "PF 10.5" cells — is real as far as the mechanics go,
+but was never tested for costs, realistic sizing, or out-of-sample
+survival. Treat those numbers as upper bounds under favorable conditions,
+not expectations.
+
+Not yet built: extending the realistic-cost/sizing/train-test treatment to
+the confluence strategy (only the trendline cascade has been put through
+it so far), building or sourcing a true micro Brent contract or accepting
+BZ needs a larger account, continuous-contract data for Silver/Brent
+(single-contract only so far), and true historical volume-crossover rolls
+for continuous stitching (currently a simpler fixed days-before-expiry
+rule — documented tradeoff in `data/continuous.py`). Paper trading
+(`paper/`) is phase 3 and intentionally untouched until a config is
+validated through backtesting — which, per the above, none currently are.

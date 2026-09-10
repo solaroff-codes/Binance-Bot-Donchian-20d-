@@ -371,3 +371,147 @@ version of this experiment that widens from each instrument's own
 known-productive threshold (0.03 for ES/NQ, not the generic 0.05 default)
 would be a natural, low-effort follow-up if this combined-confluence idea
 is worth pursuing further.
+
+## The honest backtest: realistic costs, $10k account, train/test split
+
+Every result above was produced *before* this section's fixes, and should
+be read with that in mind — see "How does a sweep produce PF 4-45 and 70%+
+win rates?" below for why those numbers were misleading, not just optimistic.
+
+`scripts/run_realistic_backtest.py` adds four things at once, all real
+gaps in every prior result in this file:
+
+1. **Transaction costs** (`backtest.engine.CostModel`): 1 tick of slippage
+   per fill (entry and exit, both unfavorable) plus $2.50/contract
+   round-turn commission. Zero costs were modeled anywhere before this.
+2. **Dollar-risk position sizing** (`backtest.engine.PositionSizer`): a
+   $10,000 account, risk_pct_per_trade swept at 1% and 2% — contracts are
+   computed from each trade's own stop distance, not assumed to be 1.
+   A trade that can't size even 1 contract within budget is skipped, not
+   floored up to 1.
+3. **A genuine train/test split**: the touch/break/target_r grid is swept
+   using *only* the first 70% of each instrument's data (by date); the
+   best-on-train combination is then evaluated on the untouched final 30%.
+   That held-out result — not "best cell of a sweep run over everything"
+   — is the number to trust.
+4. **Trailing stop vs fixed target, head-to-head**: the same entries,
+   simulated two ways — `backtest/trailing.py`'s trailing-stop exit
+   (stop ratchets along the live trendline, no fixed target) against the
+   original fixed R-multiple target — under identical costs and sizing.
+
+### Sizing reality check, before any trades were even simulated
+
+Every instrument was checked against 1-2% risk on $10k *before* running
+anything else, using the cheapest (tightest-stop) signal each one ever
+produced:
+
+| Symbol | Contract used | Cheapest signal's risk (1 contract) | % of $10k account needed |
+|---|---|---|---|
+| CL | MCL (micro, 1/10 size) | $41 | 0.4% |
+| ES | MES (micro, 1/10 size) | $182 | 1.8% |
+| GC | MGC (micro, 1/10 size) | $212 | 2.1% |
+| BZ | full size (no smaller contract exists) | $445 | 4.5% |
+| NQ | MNQ (micro, 1/10 size) | $249 | 2.5% |
+| SI | QI (mini, half size — no true micro exists) | $799 | 8.0% |
+
+Checked directly against IBKR before assuming any of this — SI has no
+micro contract on this account (`SIL` returns 0 results on COMEX, NYMEX,
+and CME), so it uses `QI` (mini silver, half-size, not a real micro).
+BZ (Brent) has no smaller contract at all (`BZ`/`MBZ` checked on NYMEX and
+ICEEU) — it's traded at full size or not at all. See
+`config/instruments.yaml` for the `micro_multiplier` used per instrument
+and why.
+
+**GC, NQ, SI, and BZ never clear the 1-2% budget at all** — every single
+signal each one ever produced needs more than 2% of a $10k account for
+just one contract of the smallest available version, even at the "cheap"
+end of their own range. This isn't a parameter-tuning problem to search
+around; it's the strategy's stop placement (tied to the trendline's own
+distance from price, not a fixed small amount) being fundamentally
+sized for a bigger account than $10k, regardless of instrument, for four
+of six instruments tested. Their rows in `output/realistic_backtest.csv`
+are all `error: no combo reached MIN_TRAIN_TRADES` — every signal skipped
+as undersized, not a signal-scarcity problem.
+
+### The two instruments that could actually be tested
+
+**CL** is the only instrument with a real train *and* test result:
+
+| Risk | Exit | Split | Trades | Win rate | Profit factor | Total P&L | Max DD (% acct) |
+|---|---|---|---|---|---|---|---|
+| 1% | fixed target | train | 15 | 53% | 3.19 | +$1,303 | 2.0% |
+| 1% | fixed target | **test** | **1** | **0%** | **0.0** | **-$61** | 0.6% |
+| 1% | trailing stop | train | 14 | 50% | 2.40 | +$584 | 1.5% |
+| 1% | trailing stop | **test** | **1** | **0%** | **0.0** | **-$61** | 0.6% |
+| 2% | fixed target | train | 24 | 58% | 2.64 | +$2,438 | 3.4% |
+| 2% | fixed target | **test** | **2** | **0%** | **0.0** | **-$297** | 3.0% |
+| 2% | trailing stop | train | 24 | 38% | 1.54 | +$858 | 7.1% |
+| 2% | trailing stop | **test** | **2** | **0%** | **0.0** | **-$297** | 3.0% |
+
+**The out-of-sample test period lost money in every single configuration
+tried, at both risk levels, with both exit types.** The training-period
+numbers (profit factor 1.5-3.2, positive P&L every time) looked
+reasonable — that's exactly the number a less careful backtest would have
+reported and stopped there. The held-out period it was never allowed to
+see tells a different story: 0% win rate on its only 1-2 trades. To be
+fair in the other direction: 1-2 trades is much too small a sample to
+conclude the edge is *fake* either — but it is conclusively *not
+confirmed*, which is the entire point of holding out test data in the
+first place.
+
+**ES** only sizes at 2% risk, and only marginally — 8-11 train trades,
+profit factor 0.88-1.01 (essentially breakeven to slightly losing) even
+*before* looking at test data, of which there was none (0 signals survived
+into the test period at any sizeable combination). Not a result worth
+pursuing further as-is.
+
+### Trailing stop vs fixed target: the trailing stop did not help
+
+Every apples-to-apples comparison available (same instrument, same risk
+level, train period) favored the fixed R-multiple target:
+
+- CL @ 1%: fixed PF 3.19 vs trailing PF 2.40
+- CL @ 2%: fixed PF 2.64 vs trailing PF 1.54 (and trailing's drawdown was
+  more than double: 7.1% of account vs 3.4%)
+- ES @ 2%: fixed PF 1.01 vs trailing PF 0.88 (trailing was net losing)
+
+The intuition behind a trailing stop is "let winners run past a fixed
+target" — but ratcheting the stop up to the live trendline here meant
+exiting *earlier* on trades that the fixed target would have let continue
+to a larger predefined win, while not adding meaningfully more protection
+on the losers (both exit rules use the same initial stop). On this
+evidence — small samples, one real instrument — the trailing stop is not
+an improvement for this strategy as built; if anything it's a downgrade.
+
+## How does a sweep produce PF 4-45 and 70%+ win rates? (why the sections above are misleading)
+
+Every profit-factor figure reported in this file above the "honest
+backtest" section shares three inflating factors, discovered by directly
+inspecting trade logs rather than trusting the summary numbers:
+
+1. **No transaction costs.** Commission and slippage were zero. Several
+   CL trades in the original sweep risked under 1 point — on a $1,000/point
+   full-size contract, a couple ticks of real slippage is a meaningful
+   fraction of that edge, and it cost nothing in the backtest.
+2. **576+ parameter combinations tested, best-of reported.** That's a
+   textbook multiple-comparisons setup: finding *something* with PF > 4 by
+   chance alone across that many combinations on a small dataset is close
+   to guaranteed even with zero real edge.
+3. **The "best" trade logs are dominated by one sustained trend, not
+   repeated skill.** CL's headline 37-trade run: entries climb 66.97 →
+   68.48 → 70.50 → 72.67 → 75.53 → 78.11 → 80.59 → 82.90 → 86.99 → 90.06,
+   almost entirely long, March through May. NQ's does the same: 25,121 →
+   25,954 → 27,106 → 28,897 → 30,474, February through August. A
+   trendline-bounce strategy looks spectacular riding one persistent
+   multi-month rally — that's the easy case for this kind of rule, not
+   evidence it works across regimes the ~1.5-2 years of cached data never
+   tested (a chop or decline would hit the same rule very differently).
+
+None of this makes the earlier sections wrong to have written down — the
+mechanics all check out, and the *patterns* found (wider retracement zones
+find more setups, CL's 4h-trigger structure being a real structural
+finding, etc.) are still informative. But the specific profit-factor and
+win-rate numbers in every section above this one should be read as upper
+bounds under favorable, cost-free, best-of-many conditions — not as
+realistic expectations. The "honest backtest" section above is the one
+that actually tries to answer "would this have made money."
