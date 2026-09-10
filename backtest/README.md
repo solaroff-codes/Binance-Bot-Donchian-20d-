@@ -273,7 +273,101 @@ strategy being more correct than the other.
 
 Sample sizes (17-54 trades) are larger than any single cell of the
 confluence-strategy sweeps, but still not enough on their own for a real
-capital-allocation decision, and this has not yet been tested against the
-continuous-contract series or with the bias-timeframe set changed (e.g.
-weekly+daily only, or including a 4h trigger alongside 1h) — see
-`strategy/README.md` for the cascade design and what's configurable.
+capital-allocation decision — see below for a full parameter/structure
+sweep, and `strategy/README.md` for the cascade design.
+
+## Trendline strategy: parameter + structure sweep
+
+`scripts/sweep_trendline_params.py` — crosses `touch_tolerance_pct` (3
+values) x `break_buffer_pct` (3) x `target_r_multiple` (4) with 4 cascade
+*structures*:
+
+| Structure | Bias timeframes | Trigger |
+|---|---|---|
+| `default` | month, week, day, 4h | 1h |
+| `no_month` | week, day, 4h | 1h |
+| `reactive` | day, 4h | 1h |
+| `4h_trigger` | month, week, day | 4h |
+
+576 combinations total (4 instruments x 4 structures x 36 param combos).
+Performance note: the expensive part (walk-forward trendline fitting)
+depends only on the structure, not the touch/break/target params, so
+`strategy/trendline_signals.py` was refactored to split
+`compute_cascade_state()` (once per structure/instrument) from
+`signals_from_state()` (cheap, called once per param combo) — otherwise
+this sweep would have redone the expensive fit 576 times instead of 16.
+
+Best result per instrument, requiring a real sample (>=15 closed trades):
+
+| Symbol | Structure | touch/break/target_R | Trades | Win rate | Profit factor | Total P&L | Max DD |
+|---|---|---|---|---|---|---|---|
+| CL | `4h_trigger` | 0.003/0.001/1.0 | 37 | 73% | **4.17** | +$36,731 | $2,437 |
+| NQ | `default` | 0.005/0.001/2.0 | 22 | 64% | 3.95 | +$126,787 | $18,919 |
+| ES | `default` | 0.003/0.001/2.0 | 18 | 56% | 2.88 | +$45,682 | $12,297 |
+| GC | `reactive` | 0.005/0.001/1.5 | 16 | 44% | 1.27 | +$16,668 | $22,880 |
+
+Findings:
+- **CL's best result switches the trigger timeframe itself to 4h**, not
+  just the bias set — a genuinely different structure, not a parameter
+  tweak, and it's a clear step up from the `default` structure's 1.69
+  profit factor: 4.17, with a strikingly low $2,437 max drawdown against
+  +$36,731 total profit. Worth taking seriously as a real structural
+  finding, not just noise, given how much it stands out across all 576
+  rows (CL's `4h_trigger` cells dominate the top of the full sweep — see
+  `output/trendline_param_sweep.csv`).
+- **NQ and ES both do best on the `default` structure**, just with
+  `target_r_multiple` pulled in from 2.0 (already close to the original
+  default) — the gains here are more modest tuning than CL's structural
+  change.
+- **GC never produces a good result anywhere in the entire 576-row grid.**
+  Its single best profit factor at any sample size is 1.27 (16 trades,
+  `reactive` structure) — every other combination is worse or has too few
+  trades to mean anything. Consistent with GC being the weak instrument
+  for this strategy in the original default-config test too. This isn't a
+  parameter-tuning problem to keep searching for; GC and the trendline
+  cascade as designed don't appear to fit each other.
+- `break_buffer_pct` barely matters in any of the top results (identical
+  profit factor across 0.001/0.003/0.005) — the productive cells are
+  almost entirely bounce events, not breaks, so this knob rarely binds.
+
+## Combined confluence: trendline strategy + widened Wyckoff filter
+
+`scripts/run_combined_confluence.py` — tests whether requiring the
+trendline strategy AND the Wyckoff/Fib/Elliott Wave confluence strategy to
+agree (same direction, entries within 24 hours of each other) beats either
+alone. The Wyckoff strategy's `range_max_pct` / `range_min_bars` are
+widened from each instrument's 1h default (0.05 / 10 bars) by 30/40/50%
+(`range_max_pct *= 1+X%`, `range_min_bars *= 1-X%`) — see the script
+docstring for exactly why those two parameters and not others.
+Confirmed trendline signals are simulated using the trendline's own
+entry/stop/target (Wyckoff here is purely a confirming filter, not the
+entry trigger).
+
+| Symbol | trendline alone | Wyckoff widened (best of 30/40/50%) | Confluence (best of 30/40/50%) |
+|---|---|---|---|
+| CL | 53 trades, PF 1.69 | 6-11 trades, PF 17.4-45.3 | **4 trades, PF 10.5** |
+| GC | 19 trades, PF 0.98 | 1-4 trades, PF 6.7-10.1 | **2 trades, PF undefined (2-0 record)** |
+| ES | 17 trades, PF 2.57 | **0 signals at every widen level** | 0 trades |
+| NQ | 24 trades, PF 2.40 | **0 signals at every widen level** | 0 trades |
+
+**Read this table with real caution, not excitement** — the "confluence"
+columns have 1-4 trades. A 2-0 win record or a profit factor of 10 on 4
+trades is not evidence of anything; it's what small samples do. The
+directionally interesting part is that filtering *down* to only the
+trendline signals a Wyckoff range also agrees with produced a much higher
+per-trade profit factor at drastically reduced volume for CL and GC — a
+plausible "fewer, better trades" pattern — but this needs far more data
+before it means anything, not a conclusion to act on.
+
+**ES and NQ found zero Wyckoff signals at any widen level, and this is
+explainable, not a bug:** widening moved `range_max_pct` *up* from the
+0.05 default (to 0.065-0.075), but the earlier range-threshold sweep
+(`sweep_params.py`) already showed ES and NQ's 1h data only produces
+Wyckoff signals at `range_max_pct=0.03` — *below* the default, not above
+it (recall the documented non-monotonic relationship between threshold
+and signal count). Widening upward from 0.05, as literally requested,
+moved in the wrong direction for these two instruments specifically. A
+version of this experiment that widens from each instrument's own
+known-productive threshold (0.03 for ES/NQ, not the generic 0.05 default)
+would be a natural, low-effort follow-up if this combined-confluence idea
+is worth pursuing further.

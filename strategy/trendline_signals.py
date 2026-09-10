@@ -26,6 +26,17 @@ This module only produces TrendlineSignal objects. TrendlineSignal
 deliberately shares field names (entry_ts, direction, entry_price,
 stop_price, target_price) with strategy.signals.Signal so it's a drop-in
 input to backtest.engine.simulate_trades() without any changes there.
+
+Split into a two-phase pipeline (CascadeState + generate_trendline_signals)
+because the expensive part — walk_forward_trendlines on the trigger
+timeframe and every bias timeframe — depends only on the input data,
+fractal_n, max_pivots, bias_timeframes, and trigger_timeframe. It does NOT
+depend on touch_tolerance_pct, break_buffer_pct, target_r_multiple,
+stop_buffer_pct, allow_bounce, or allow_break. A parameter sweep over
+those cheap knobs would otherwise redo the expensive walk-forward fit from
+scratch for every single combination — compute_cascade_state() does it
+once, generate_trendline_signals() (or the lower-level
+signals_from_state()) is cheap to call repeatedly after that.
 """
 
 from __future__ import annotations
@@ -115,7 +126,24 @@ def _check_bar_event(
     return None, None
 
 
-def generate_trendline_signals(
+@dataclass(frozen=True)
+class CascadeState:
+    """The expensive, parameter-independent half of the pipeline — see
+    module docstring. Reuse across a sweep over the cheap knobs instead of
+    recomputing this for every combination."""
+
+    trigger: pd.DataFrame
+    support_lines: list[TrendLine | None]
+    resistance_lines: list[TrendLine | None]
+    bias_series_by_tf: dict[str, list[Bias]]
+    bias_dates_by_tf: dict[str, np.ndarray]
+    high_col: str
+    low_col: str
+    close_col: str
+    timestamp_col: str
+
+
+def compute_cascade_state(
     bias_dfs: dict[str, pd.DataFrame],
     trigger_df: pd.DataFrame,
     config: TrendlineStrategyConfig,
@@ -123,7 +151,7 @@ def generate_trendline_signals(
     low_col: str = "low",
     close_col: str = "close",
     timestamp_col: str = "date",
-) -> list[TrendlineSignal]:
+) -> CascadeState:
     """
     bias_dfs: {timeframe: df} for every timeframe in config.bias_timeframes.
     trigger_df: config.trigger_timeframe's own OHLCV data.
@@ -145,13 +173,38 @@ def generate_trendline_signals(
         high_col=high_col, low_col=low_col, close_col=close_col, timestamp_col=timestamp_col,
     )
 
+    return CascadeState(
+        trigger=trigger,
+        support_lines=support_lines,
+        resistance_lines=resistance_lines,
+        bias_series_by_tf=bias_series_by_tf,
+        bias_dates_by_tf=bias_dates_by_tf,
+        high_col=high_col,
+        low_col=low_col,
+        close_col=close_col,
+        timestamp_col=timestamp_col,
+    )
+
+
+def signals_from_state(state: CascadeState, config: TrendlineStrategyConfig) -> list[TrendlineSignal]:
+    """
+    The cheap half: apply config's entry/exit knobs (touch_tolerance_pct,
+    break_buffer_pct, target_r_multiple, stop_buffer_pct, allow_bounce,
+    allow_break) against an already-computed CascadeState. config's
+    bias_timeframes/trigger_timeframe/fractal_n/max_pivots are assumed to
+    match whatever built `state` — this function does not re-check that.
+    """
+    trigger = state.trigger
+    high_col, low_col, close_col, timestamp_col = (
+        state.high_col, state.low_col, state.close_col, state.timestamp_col
+    )
     signals: list[TrendlineSignal] = []
 
     for idx in range(1, len(trigger)):
         bar_date = pd.Timestamp(trigger[timestamp_col].iloc[idx]).date()
 
         biases: dict[str, Bias] = {
-            tf: _bias_lookup(bias_dates_by_tf[tf], bias_series_by_tf[tf], bar_date)
+            tf: _bias_lookup(state.bias_dates_by_tf[tf], state.bias_series_by_tf[tf], bar_date)
             for tf in config.bias_timeframes
         }
         opinions = {b for b in biases.values() if b != "neutral"}
@@ -159,7 +212,9 @@ def generate_trendline_signals(
             continue
         overall_bias = opinions.pop()
 
-        line: TrendLine | None = support_lines[idx - 1] if overall_bias == "bullish" else resistance_lines[idx - 1]
+        line: TrendLine | None = (
+            state.support_lines[idx - 1] if overall_bias == "bullish" else state.resistance_lines[idx - 1]
+        )
         if line is None:
             continue
 
@@ -214,3 +269,21 @@ def generate_trendline_signals(
         )
 
     return signals
+
+
+def generate_trendline_signals(
+    bias_dfs: dict[str, pd.DataFrame],
+    trigger_df: pd.DataFrame,
+    config: TrendlineStrategyConfig,
+    high_col: str = "high",
+    low_col: str = "low",
+    close_col: str = "close",
+    timestamp_col: str = "date",
+) -> list[TrendlineSignal]:
+    """Convenience wrapper: compute_cascade_state() + signals_from_state()
+    in one call. Prefer calling them separately when sweeping the cheap
+    knobs (touch_tolerance_pct, break_buffer_pct, target_r_multiple, ...)
+    across many configs that all share the same data/fractal_n/max_pivots/
+    bias_timeframes/trigger_timeframe — see module docstring."""
+    state = compute_cascade_state(bias_dfs, trigger_df, config, high_col, low_col, close_col, timestamp_col)
+    return signals_from_state(state, config)
