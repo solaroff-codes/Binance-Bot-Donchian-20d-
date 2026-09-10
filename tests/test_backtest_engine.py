@@ -107,6 +107,45 @@ def test_simulate_trades_stop_takes_priority_when_both_hit_same_bar():
     assert trades[0].outcome == "loss"
 
 
+def test_simulate_trades_skips_signal_overlapping_an_open_position():
+    dates = pd.date_range("2026-01-01", periods=6, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "high": [100, 105, 111, 116, 121, 125],
+            "low": [95, 98, 99, 100, 101, 102],
+            "close": [100, 103, 110, 115, 120, 124],
+        }
+    )
+    # sig1: opens day0, resolves (win) on day2 -> blocks entries through day2.
+    sig1 = _signal(entry_ts=dates[0], stop_price=95, target_price=110)
+    # sig2: would open day1, while sig1 is still open (closes day2) -> skipped.
+    sig2 = _signal(entry_ts=dates[1], stop_price=90, target_price=115)
+    # sig3: opens day3, after sig1 has already closed -> kept.
+    sig3 = _signal(entry_ts=dates[3], stop_price=95, target_price=120)
+
+    trades = simulate_trades(df, [sig1, sig2, sig3], multiplier=1.0)
+    assert len(trades) == 2
+    assert {t.entry_ts for t in trades} == {dates[0], dates[3]}
+
+
+def test_simulate_trades_can_disable_single_position_enforcement():
+    dates = pd.date_range("2026-01-01", periods=6, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "high": [100, 105, 111, 116, 121, 125],
+            "low": [95, 98, 99, 100, 101, 102],
+            "close": [100, 103, 110, 115, 120, 124],
+        }
+    )
+    sig1 = _signal(entry_ts=dates[0], stop_price=95, target_price=110)
+    sig2 = _signal(entry_ts=dates[1], stop_price=90, target_price=115)
+
+    trades = simulate_trades(df, [sig1, sig2], multiplier=1.0, enforce_single_position=False)
+    assert len(trades) == 2
+
+
 def test_compute_metrics_aggregates_win_loss_open():
     t0 = pd.Timestamp("2026-01-01")
     t2 = pd.Timestamp("2026-01-03")

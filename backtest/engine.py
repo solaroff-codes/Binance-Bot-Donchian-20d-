@@ -14,6 +14,18 @@ realistic fill/slippage model):
     tie-break — avoids overstating results on wide bars).
   - A signal with neither stop nor target hit by the end of the available
     data is recorded as 'open' and excluded from win/loss-based metrics.
+  - enforce_single_position=True (the default): signals are processed in
+    entry_ts order, and any signal that would open while a prior simulated
+    trade is still open (its entry falls before that trade's exit, or that
+    trade never closed) is skipped rather than simulated as a second,
+    independent trade. Without this, two signals a day apart in the same
+    direction get counted as two independent bets, when a real account
+    would already be in the first position — this only became visible
+    once a strategy (the trendline cascade) started producing signals
+    frequently enough to actually overlap; the sparser confluence
+    strategy's signal counts were too low to have exposed it. Pass
+    enforce_single_position=False to restore the old "every signal is an
+    independent trade" behavior.
 
 'sharpe_r' is a trade-level Sharpe-like ratio (mean/std of R-multiples,
 scaled by sqrt(n)) — it is NOT an annualized, time-series Sharpe ratio.
@@ -23,12 +35,22 @@ Labeled explicitly so it isn't mistaken for one.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 
 import numpy as np
 import pandas as pd
 
-from strategy.signals import Signal
+
+class SignalLike(Protocol):
+    """Structural type for anything simulate_trades can consume — both
+    strategy.signals.Signal and strategy.trendline_signals.TrendlineSignal
+    satisfy this without either module depending on the other."""
+
+    entry_ts: object
+    direction: Literal["long", "short"]
+    entry_price: float
+    stop_price: float
+    target_price: float
 
 
 @dataclass(frozen=True)
@@ -49,17 +71,30 @@ class Trade:
 
 def simulate_trades(
     df: pd.DataFrame,
-    signals: list[Signal],
+    signals: list[SignalLike],
     multiplier: float = 1.0,
     high_col: str = "high",
     low_col: str = "low",
     timestamp_col: str = "date",
+    enforce_single_position: bool = True,
 ) -> list[Trade]:
     out = df.reset_index(drop=True)
     timestamps = out[timestamp_col]
 
+    ordered_signals = sorted(signals, key=lambda s: s.entry_ts) if enforce_single_position else signals
+
     trades: list[Trade] = []
-    for signal in signals:
+    blocked_until_date = None  # plain date; None = not currently blocked
+    position_open_indefinitely = False
+
+    for signal in ordered_signals:
+        if enforce_single_position:
+            if position_open_indefinitely:
+                continue
+            if blocked_until_date is not None:
+                if pd.Timestamp(signal.entry_ts).date() < blocked_until_date:
+                    continue
+
         risk_points = abs(signal.entry_price - signal.stop_price)
         future = out[timestamps > signal.entry_ts]
 
@@ -111,6 +146,12 @@ def simulate_trades(
                 pnl_dollars=pnl_dollars,
             )
         )
+
+        if enforce_single_position:
+            if outcome == "open":
+                position_open_indefinitely = True
+            else:
+                blocked_until_date = pd.Timestamp(exit_ts).date()
 
     return trades
 
