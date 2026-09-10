@@ -81,6 +81,12 @@ class CostModel:
     slippage_ticks: float = 0.0
     tick_size: float | None = None
     commission_per_contract: float = 0.0
+    # Percentage-of-notional commission (e.g. Binance's ~0.1% spot taker
+    # fee), applied to both entry and exit notional separately — a
+    # different fee structure than futures' flat commission_per_contract.
+    # Both fields coexist and add; a given cost model would normally set
+    # only one of them non-zero.
+    commission_pct: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -148,6 +154,10 @@ def sized_and_costed_pnl(
     pnl_dollars = pnl_points * multiplier * contracts
     if cost_model is not None:
         pnl_dollars -= cost_model.commission_per_contract * contracts
+        if cost_model.commission_pct:
+            entry_notional = abs(fill_entry) * multiplier * contracts
+            exit_notional = abs(fill_exit) * multiplier * contracts
+            pnl_dollars -= cost_model.commission_pct * (entry_notional + exit_notional)
 
     return pnl_dollars, contracts
 

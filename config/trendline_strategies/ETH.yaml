@@ -1,0 +1,18 @@
+# Trendline cascade for ETH (Ethereum, Binance spot). Same starting params
+# as BTC.yaml — see that file's comment on why trigger is daily, not hourly.
+
+symbol: ETH
+bias_timeframes: ["1 month", "1 week"]
+trigger_timeframe: "1 day"
+use_continuous: true
+
+fractal_n: 2
+max_pivots: 20
+touch_tolerance_pct: 0.002
+break_buffer_pct: 0.002
+
+stop_buffer_pct: 0.005
+target_r_multiple: 2.0
+
+allow_bounce: true
+allow_break: true

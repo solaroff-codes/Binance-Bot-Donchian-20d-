@@ -1,0 +1,20 @@
+# Trendline cascade for SOL (Solana, Binance spot). Same starting params
+# as BTC.yaml (see that file's comment on why trigger is daily, not
+# hourly). SOL's history only goes back to 2020-08 on Binance, so it gets
+# slightly less than the 6 years BTC/ETH have available.
+
+symbol: SOL
+bias_timeframes: ["1 month", "1 week"]
+trigger_timeframe: "1 day"
+use_continuous: true
+
+fractal_n: 2
+max_pivots: 20
+touch_tolerance_pct: 0.002
+break_buffer_pct: 0.002
+
+stop_buffer_pct: 0.005
+target_r_multiple: 2.0
+
+allow_bounce: true
+allow_break: true

@@ -1,0 +1,42 @@
+# Crypto instrument definitions for data/binance_connector.py. Kept
+# separate from config/instruments.yaml (IBKR futures) rather than merged
+# in: scripts that loop over load_instruments().keys() to fetch/resolve
+# IBKR futures contracts (fetch_all_instruments.py, build_continuous_contracts.py)
+# would break if crypto entries were mixed into that file — these aren't
+# FUT contracts and have no IBKR front-month/rollover concept at all.
+#
+# multiplier: 1 — spot crypto, no futures point-multiplier; 1 unit of
+# price movement = $1 per 1 coin held.
+# micro_multiplier: the position-sizing "lot size" used by
+# backtest.engine.PositionSizer — Binance allows fractional order
+# quantities far finer than this (see stepSize from exchangeInfo, e.g.
+# BTC 0.00001), so this is deliberately small (0.0001) purely to give the
+# existing floor()-to-integer-lots sizing logic effectively continuous
+# granularity, reusing that machinery unchanged rather than needing a
+# separate fractional-sizing code path.
+# tick_size: Binance's actual price tick for all three pairs (confirmed
+# via /api/v3/exchangeInfo), used for slippage modeling.
+# commission_pct: Binance's standard spot taker fee (0.1%), applied to
+# notional value per fill — a percentage, not a flat per-contract dollar
+# amount like futures commissions. See backtest/engine.py's CostModel.
+
+BTC:
+  description: "Bitcoin (BTCUSDT spot)"
+  multiplier: 1
+  tick_size: 0.01
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+ETH:
+  description: "Ethereum (ETHUSDT spot)"
+  multiplier: 1
+  tick_size: 0.01
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+SOL:
+  description: "Solana (SOLUSDT spot)"
+  multiplier: 1
+  tick_size: 0.01
+  micro_multiplier: 0.0001
+  commission_pct: 0.001

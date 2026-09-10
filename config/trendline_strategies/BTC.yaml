@@ -1,0 +1,29 @@
+# Trendline cascade for BTC (Bitcoin, Binance spot). use_continuous: true
+# since Binance data is cached via the continuous.parquet slot (no
+# contract-month/rollover concept for spot crypto) — see
+# data/binance_connector.py.
+#
+# trigger_timeframe is daily, not hourly like the futures configs: BTC's
+# 6 years of 1h data is ~52,600 bars, and indicators.trendlines.
+# walk_forward_trendlines's refit cost blew up badly on it in testing
+# (2000 bars: 30s: 5000 bars: 116s — crypto's much higher volatility means
+# far more swing pivots than futures data has, so far more refits). Daily
+# (~2,200 bars over 6 years) is the same order of magnitude that performed
+# fine everywhere else in this project. Sub-daily crypto timeframes are a
+# real gap, not tested here — see backtest/README.md.
+
+symbol: BTC
+bias_timeframes: ["1 month", "1 week"]
+trigger_timeframe: "1 day"
+use_continuous: true
+
+fractal_n: 2
+max_pivots: 20
+touch_tolerance_pct: 0.002
+break_buffer_pct: 0.002
+
+stop_buffer_pct: 0.005
+target_r_multiple: 2.0
+
+allow_bounce: true
+allow_break: true

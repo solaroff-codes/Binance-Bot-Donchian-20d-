@@ -66,6 +66,21 @@ def load_continuous(symbol: str, timeframe: str) -> pd.DataFrame | None:
     return None
 
 
+def save_continuous(symbol: str, timeframe: str, df: pd.DataFrame) -> Path:
+    """
+    Write to the same continuous.parquet slot load_continuous() reads.
+    data/continuous.py's own futures back-adjustment pipeline writes here
+    directly; this is the same slot used for data with no contract-month
+    concept at all — e.g. data/binance_connector.py's crypto spot data,
+    which is naturally one continuous series (no rollover, ever).
+    """
+    timeframe_slug = timeframe.replace(" ", "_")
+    path = CACHE_ROOT / symbol / timeframe_slug / "continuous.parquet"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(path, index=False)
+    return path
+
+
 def drop_untraded_bars(df: pd.DataFrame, volume_col: str = "volume") -> pd.DataFrame:
     """
     Drop bars with zero volume. These are IBKR placeholder/reference bars

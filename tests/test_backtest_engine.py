@@ -166,6 +166,21 @@ def test_simulate_trades_applies_slippage_and_commission():
     assert t.contracts == 1
 
 
+def test_simulate_trades_applies_percentage_commission():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 111, 111], "low": [95, 99, 99], "close": [100, 110, 110]}
+    )
+    signal = _signal(entry_ts=dates[0], stop_price=95, target_price=110)
+
+    costed = simulate_trades(
+        df, [signal], multiplier=1, cost_model=CostModel(commission_pct=0.01),
+    )
+    t = costed[0]
+    # no slippage: fill_entry=100, fill_exit=110. commission = 1% * (100+110) = 2.10
+    assert t.pnl_dollars == pytest.approx((110 - 100) * 1 - 2.10)
+
+
 def test_simulate_trades_position_sizer_computes_contracts():
     dates = pd.date_range("2026-01-01", periods=3, freq="D")
     df = pd.DataFrame(
