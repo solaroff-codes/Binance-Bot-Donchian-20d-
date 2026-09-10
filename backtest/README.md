@@ -149,23 +149,81 @@ instruments. The pattern (wider zone finds more setups; target ratio
 trades off win rate against payoff) is more trustworthy than any single
 cell's exact numbers.
 
-### Continuous contracts (more history)
+### Continuous contracts (more history) — supersedes the sections above
 
-See [`data/continuous.py`](../data/continuous.py) — front-month-only
-history is capped at ~1-1.5 years of 1-hour data regardless of requested
-duration (a single contract's real trading life). Building a back-adjusted
-continuous series across multiple historical contract months is what
-actually gets more history; see that module and its README section in the
-root README for what's implemented and its own documented limitations.
+**Important:** everything above this point was measured *before* two real
+fixes landed: (1) `data/cache.drop_untraded_bars()` — zero-volume
+placeholder bars (IBKR reference data for periods before a contract was
+actively traded, flat OHLC) were up to 45% of a single contract's raw
+fetch and would look like trivial zero-volatility "trading ranges" to
+`indicators.wyckoff`; and (2) continuous-contract stitching
+(`data/continuous.py`), built via `scripts/build_continuous_contracts.py`.
+Every number in the sections above should be treated as superseded by
+this one — re-ran both sweeps (`scripts/sweep_params.py`,
+`output/param_sweep.csv` now has a `source` column: `single` vs
+`continuous`) with both fixes in place, across all 4 instruments x 2
+timeframes x 2 sources = 16 configs.
 
-### Conclusion so far
+**Continuous-series depth per instrument** (`scripts/build_continuous_contracts.py`,
+stitching every expired contract IBKR still lists plus the current front
+month, fixed 5-day pre-expiry roll, additive back-adjustment):
 
-CL and GC both show a real, if modest, edge on 1-hour bars, and it
-strengthens further once the entry/exit parameters are tuned around a
-wider retracement zone (CL profit factor up to 17.2, GC win rate up to
-78%). ES is consistently losing across every configuration tried. NQ's
-sample is too small to conclude anything. Sample sizes (single digits to
-low teens per cell) are still small for any of this — the honest next
-step, now that continuous-contract history is available, is re-running
-both sweeps against the longer series to see whether these patterns hold
-up or were an artifact of a short, possibly unrepresentative window.
+| Symbol | Daily bars (continuous) | Daily start | 1-hour bars (continuous) |
+|---|---|---|---|
+| GC | 398 | 2025-02-10 | 2,869 |
+| CL | 737 | 2023-09-25 | 4,441 |
+| ES | 739 | 2023-09-21 | 3,519 |
+| NQ | 621 | 2024-03-18 | 3,318 |
+
+IBKR's own expired-contract retention varies a lot by instrument — CL and
+ES reach back 3 years, GC and NQ only about 1-1.5. Not something this
+project controls; it's whatever contract records IBKR still has on file.
+
+**What changed with more (and cleaner) data:**
+
+- **More signals almost everywhere.** Max signal count found in the full
+  grid, continuous vs single-contract: CL 1-hour 22 vs 11, ES 1-hour 7 vs
+  4, NQ 1-hour 5 vs 3. GC 1-hour is the one exception (8 vs 9 — roughly a
+  wash).
+- **ES and NQ daily bars go from zero signals ever to actually finding
+  some.** With single-contract daily data, ES and NQ found **0 signals
+  across the entire grid** — full stop. With continuous daily data, both
+  find 2 signals (at `range_max_pct=0.05`). Still a tiny sample, but a
+  real qualitative change: it's no longer "this rule never fires on daily
+  bars for these instruments."
+- **CL is the most consistent result across both datasets.**
+  `range_max_pct=0.08` with `range_min_bars` 8-15, 1-hour bars: profit
+  factor ~14 and win rate 50-60% in *both* the single-contract and
+  continuous data, with reasonable samples (5-6 trades each). Two
+  different (overlapping but not identical) datasets landing on the same
+  threshold with similar quality is the closest thing to a validated
+  pattern found so far.
+- **GC's standout single-contract result doesn't fully replicate.** The
+  best single-contract cell (`range_max_pct=0.03`, `range_min_bars=15`:
+  80% win rate, profit factor 24.5) is notably stronger than the best
+  comparable continuous-data cell (`range_max_pct=0.03`,
+  `range_min_bars=5`: 60% win rate, profit factor 9.4) — worth real
+  skepticism that the single-contract result was a favorable quirk of
+  that specific ~14-month window rather than a robust edge.
+  `output/param_sweep.csv` has both in full for direct comparison.
+  - **ES remains weak.** Even with continuous data, the best ES 1-hour
+    result found in the min-5-trades cutoff is profit factor 1.88, 43% win
+    rate — barely profitable, not a result worth trading.
+  - **NQ 1-hour continuous** (`range_max_pct=0.03`): 5 signals, 60% win
+    rate, profit factor 12.6, +$48,602. Promising number, still too few
+    trades (5) to trust on its own.
+
+### Conclusion
+
+CL has the most robust edge found across everything tried in this
+project so far — consistent across two different datasets at
+`range_max_pct=0.08`, 1-hour bars, profit factor in the 9-14 range on 5-12
+trades. GC looks promising but its best result is dataset-sensitive rather
+than confirmed. ES has not produced a tradeable configuration in any test.
+NQ is promising but under-sampled. Even the best sample sizes here (12-22
+trades in the largest cells) are still small for a real go/no-go decision
+— next steps worth considering: sweep `retracement_zone` /
+`target_extension_ratio` against the continuous data specifically (the
+existing entry/exit sweep above only used single-contract data), and/or
+extend the confluence rule to more instruments' historical data as it
+becomes available (e.g. CL/ES's 3-year depth vs GC/NQ's ~1.5 years).

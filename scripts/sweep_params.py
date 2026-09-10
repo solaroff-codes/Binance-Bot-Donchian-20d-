@@ -33,6 +33,7 @@ RANGE_MIN_BARS_GRID = [5, 8, 10, 15]
 DISPLAY_COLUMNS = [
     "symbol",
     "timeframe",
+    "source",
     "range_max_pct",
     "range_min_bars",
     "num_signals",

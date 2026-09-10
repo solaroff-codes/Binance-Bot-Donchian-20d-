@@ -48,13 +48,21 @@ def run_param_sweep(
     """
     rows = []
     for config in generate_grid(base_config, **param_grids):
+        source = "continuous" if config.use_continuous else "single"
         try:
             _, metrics = run_backtest(config, start_date, end_date)
         except FileNotFoundError as exc:
-            rows.append({"symbol": config.symbol, "timeframe": config.timeframe, "error": str(exc)})
+            rows.append(
+                {
+                    "symbol": config.symbol,
+                    "timeframe": config.timeframe,
+                    "source": source,
+                    "error": str(exc),
+                }
+            )
             continue
 
-        row = {"symbol": config.symbol, "timeframe": config.timeframe}
+        row = {"symbol": config.symbol, "timeframe": config.timeframe, "source": source}
         for name in param_grids:
             row[name] = getattr(config, name)
         row.update(metrics)

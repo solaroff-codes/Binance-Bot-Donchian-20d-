@@ -1,0 +1,17 @@
+# Same as CL_1hour.yaml but backed by the back-adjusted continuous
+# contract series (data/continuous.py) instead of the latest single
+# contract-month — run scripts/build_continuous_contracts.py first.
+
+symbol: CL
+timeframe: "1 hour"
+use_continuous: true
+
+fractal_n: 2
+
+range_window: 20
+range_max_pct: 0.05
+range_min_bars: 10
+
+retracement_zone: [0.5, 0.786]
+target_extension_ratio: 1.618
+stop_buffer_pct: 0.005
