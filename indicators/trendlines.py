@@ -23,6 +23,15 @@ event types against a fitted line:
   - "bounce": price reaches the line, then the next bar closes back away
     from it in the trend direction (one-bar reversal confirmation).
   - "break": a bar closes through the line by more than break_buffer_pct.
+
+walk_forward_trendlines() gives a point-in-time-correct trendline for
+every bar (needed for backtesting — a trendline "known" at bar 500 must
+never have been fit using pivots from bar 600), without the O(bars) cost
+of a full O(P^2) refit at every single bar: it only refits when a new
+same-kind pivot has just been confirmed, or the current line has just been
+violated. Both are much rarer than "every bar," and a trader doesn't
+redraw their trendline every bar either — only when something about it
+actually changes.
 """
 
 from __future__ import annotations
@@ -194,3 +203,55 @@ def detect_trendline_events(
                     )
 
     return events
+
+
+def walk_forward_trendlines(
+    df: pd.DataFrame,
+    n: int = 2,
+    kind: Literal["support", "resistance"] = "support",
+    max_pivots: int = 20,
+    high_col: str = "high",
+    low_col: str = "low",
+    close_col: str = "close",
+    timestamp_col: str = "date",
+) -> list[TrendLine | None]:
+    """
+    Return the point-in-time-correct trendline of `kind` "as known" at
+    every bar — index i's line was fit using only bars <= i, so it's safe
+    to use in a walk-forward backtest without lookahead. Refits only on a
+    new pivot or a violation of the current line (see module docstring).
+    """
+    flagged = detect_swing_points(df, n=n, high_col=high_col, low_col=low_col)
+    swing_col = "swing_low" if kind == "support" else "swing_high"
+    pivot_cumcount = flagged[swing_col].cumsum()
+    closes = flagged[close_col]
+
+    lines: list[TrendLine | None] = []
+    current_line: TrendLine | None = None
+    last_pivot_count = -1
+
+    for idx in range(len(flagged)):
+        new_pivot = pivot_cumcount.iloc[idx] != last_pivot_count
+        violated = False
+        if current_line is not None:
+            line_price = current_line.price_at(idx)
+            close = closes.iloc[idx]
+            violated = close < line_price if kind == "support" else close > line_price
+
+        if new_pivot or violated:
+            current_line = find_steepest_unbroken_trendline(
+                df,
+                n=n,
+                kind=kind,
+                max_pivots=max_pivots,
+                as_of_idx=idx,
+                high_col=high_col,
+                low_col=low_col,
+                close_col=close_col,
+                timestamp_col=timestamp_col,
+            )
+            last_pivot_count = pivot_cumcount.iloc[idx]
+
+        lines.append(current_line)
+
+    return lines

@@ -1,6 +1,11 @@
 import pandas as pd
 
-from indicators.trendlines import TrendLine, detect_trendline_events, find_steepest_unbroken_trendline
+from indicators.trendlines import (
+    TrendLine,
+    detect_trendline_events,
+    find_steepest_unbroken_trendline,
+    walk_forward_trendlines,
+)
 
 
 def _flat_bars(values: list[float]) -> pd.DataFrame:
@@ -35,6 +40,42 @@ def test_picks_steepest_valid_line_and_rejects_one_a_pivot_pokes_through():
     assert (line.start_idx, line.end_idx) == (14, 24)
     assert (line.start_price, line.end_price) == (106, 118)
     assert line.slope == 1.2
+
+
+def test_walk_forward_trendlines_is_point_in_time_correct():
+    # Same three-pivot setup as the steepest-line test above.
+    values = (
+        [150, 150]
+        + [140, 130, 100, 130, 140]
+        + [150] * 5
+        + [140, 130, 106, 130, 140]
+        + [150] * 5
+        + [140, 130, 118, 130, 140]
+        + [150, 150]
+    )
+    df = _flat_bars(values)
+
+    lines = walk_forward_trendlines(df, n=2, kind="support")
+    assert len(lines) == len(df)
+
+    # Before the 2nd pivot (idx14) confirms, only 1 pivot exists — no line yet.
+    assert lines[13] is None
+
+    # At idx14, the 2nd pivot just confirmed: only line 4->14 (slope 0.6)
+    # is a candidate so far — it must be the one in use.
+    assert (lines[14].start_idx, lines[14].end_idx) == (4, 14)
+    assert lines[14].slope == 0.6
+
+    # No new pivot and no violation between pivots 2 and 3 — same line
+    # object's values should still be in effect mid-way through that gap.
+    assert (lines[20].start_idx, lines[20].end_idx) == (4, 14)
+    assert lines[20].slope == 0.6
+
+    # At the final bar, this must match find_steepest_unbroken_trendline's
+    # own default (as_of_idx = last bar) — the steepest valid line, 14->24.
+    final = find_steepest_unbroken_trendline(df, n=2, kind="support")
+    assert (lines[-1].start_idx, lines[-1].end_idx) == (final.start_idx, final.end_idx)
+    assert lines[-1].slope == final.slope
 
 
 def test_returns_none_with_fewer_than_two_pivots():
