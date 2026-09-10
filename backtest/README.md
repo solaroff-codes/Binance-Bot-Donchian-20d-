@@ -108,15 +108,64 @@ both timeframes — it already picks up every `*.yaml` under
   than strictly finding more of them. Expected behavior for a threshold
   based contiguous-run detector, not a defect.
 
+### Entry/exit sensitivity (`scripts/sweep_entry_exit.py`)
+
+Held `range_max_pct` at each instrument's productive threshold (CL 0.08,
+GC 0.03, both 1-hour) and swept `retracement_zone` x
+`target_extension_ratio` around them. Full table in
+`output/entry_exit_sweep.csv`. Clear, consistent pattern across both
+instruments:
+
+- **Wider retracement zones find more setups.** `(0.382, 0.786)` — the
+  widest zone tested — gave the largest sample for both instruments (CL: 7
+  signals, GC: 12 signals), vs. 5-7 for narrower zones like `(0.5, 0.618)`.
+  Makes sense: a wider acceptable pullback range simply matches more real
+  retracements.
+- **Lower target ratios raise win rate; higher ones raise total profit
+  (as long as win rate doesn't collapse).** For CL `(0.382, 0.786)`: win
+  rate is fixed at 57% regardless of target (target only changes where you
+  exit on a win, not whether you win) while profit factor climbs from 6.2
+  at `target=1.0` to 17.2 at `target=2.0` (+$17,644 total). Same pattern
+  for GC.
+- **Standout combinations found:**
+  - CL `(0.382, 0.786)` zone, `target_extension_ratio=2.0`: 7 signals, 57%
+    win rate, profit factor **17.2**, +$17,644, $407 max drawdown —
+    the best risk-adjusted result found for CL so far.
+  - GC `(0.382, 0.618)` zone, `target_extension_ratio=1.0`: 9 signals,
+    **78% win rate**, profit factor 7.8, +$34,318 — by far the highest win
+    rate found for GC, at the more conservative (1:1) target.
+  - GC `(0.382, 0.786)` zone, `target_extension_ratio=1.0`: 12 signals (the
+    largest GC sample found anywhere in either sweep), 67% win rate,
+    profit factor 5.0, +$37,528 — best balance of sample size and quality.
+- Deep, narrow zones like `(0.618, 0.786)` (the closest thing to a
+  "textbook" golden-ratio-only zone) underperformed the wider zones on
+  both instruments — worth noting since `(0.5, 0.786)` was the arbitrary
+  starting default in every config, and it is *not* the best zone found
+  for either instrument.
+
+None of this should be read as "GC `(0.382,0.618)`/`target=1.0` is the
+strategy" — it's one grid search on ~1 year of 1-hour data for two
+instruments. The pattern (wider zone finds more setups; target ratio
+trades off win rate against payoff) is more trustworthy than any single
+cell's exact numbers.
+
+### Continuous contracts (more history)
+
+See [`data/continuous.py`](../data/continuous.py) — front-month-only
+history is capped at ~1-1.5 years of 1-hour data regardless of requested
+duration (a single contract's real trading life). Building a back-adjusted
+continuous series across multiple historical contract months is what
+actually gets more history; see that module and its README section in the
+root README for what's implemented and its own documented limitations.
+
 ### Conclusion so far
 
-CL and GC both show a real, if modest, edge on 1-hour bars at specific
-thresholds (6-12 trades, positive profit factor). ES shows a consistent
-loss. NQ's sample is too small to conclude anything. None of these sample
-sizes (single digits to low teens) are large enough to commit real capital
-against — the natural next steps are (a) more history via continuous-
-contract stitching, since single-contract 1-hour data still only spans
-~1-1.5 years, and/or (b) sweeping `retracement_zone` /
-`target_extension_ratio` around the CL/GC thresholds that already work, to
-see how sensitive the edge is to entry/exit timing rather than just
-whether a range is found at all.
+CL and GC both show a real, if modest, edge on 1-hour bars, and it
+strengthens further once the entry/exit parameters are tuned around a
+wider retracement zone (CL profit factor up to 17.2, GC win rate up to
+78%). ES is consistently losing across every configuration tried. NQ's
+sample is too small to conclude anything. Sample sizes (single digits to
+low teens per cell) are still small for any of this — the honest next
+step, now that continuous-contract history is available, is re-running
+both sweeps against the longer series to see whether these patterns hold
+up or were an artifact of a short, possibly unrepresentative window.
