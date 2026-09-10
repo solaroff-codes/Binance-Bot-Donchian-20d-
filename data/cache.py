@@ -40,15 +40,48 @@ def load_latest(symbol: str, timeframe: str) -> pd.DataFrame | None:
     greatest YYYYMMDD filename is always the latest roll). Useful when the
     caller just wants "the current front-month data" without separately
     tracking which specific contract that currently is.
+
+    Glob is restricted to digit-prefixed filenames (contract-month files
+    are always "YYYYMMDD.parquet") so it does NOT pick up
+    "continuous.parquet" sitting in the same directory — "c" sorts after
+    any digit, so an unrestricted glob would silently return the
+    continuous series here instead of the latest single contract.
     """
     timeframe_slug = timeframe.replace(" ", "_")
     dir_path = CACHE_ROOT / symbol / timeframe_slug
     if not dir_path.exists():
         return None
-    files = sorted(dir_path.glob("*.parquet"))
+    files = sorted(dir_path.glob("[0-9]*.parquet"))
     if not files:
         return None
     return pd.read_parquet(files[-1])
+
+
+def load_continuous(symbol: str, timeframe: str) -> pd.DataFrame | None:
+    """Load the cached back-adjusted continuous series, if built — see data/continuous.py."""
+    timeframe_slug = timeframe.replace(" ", "_")
+    path = CACHE_ROOT / symbol / timeframe_slug / "continuous.parquet"
+    if path.exists():
+        return pd.read_parquet(path)
+    return None
+
+
+def drop_untraded_bars(df: pd.DataFrame, volume_col: str = "volume") -> pd.DataFrame:
+    """
+    Drop bars with zero volume. These are IBKR placeholder/reference bars
+    for periods before a contract was actively traded — flat
+    open == high == low == close, no real price discovery — not genuine
+    market activity. Seen in practice on a single fresh front-month
+    contract's own "2 Y" fetch: up to ~45% of its earliest bars can be
+    these placeholders, which would otherwise look like a trivial
+    zero-volatility "trading range" to indicators.wyckoff.
+
+    Raw cache loaders (load/load_latest/load_continuous) deliberately do
+    NOT apply this — they return exactly what was cached, unmodified.
+    Callers that need real trading data for signal generation or
+    backtesting should call this explicitly.
+    """
+    return df[df[volume_col] != 0].reset_index(drop=True)
 
 
 def save(symbol: str, timeframe: str, contract_month: str, df: pd.DataFrame) -> Path:

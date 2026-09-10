@@ -22,6 +22,12 @@ class StrategyConfig:
     symbol: str
     timeframe: str
 
+    # data source: single (latest) contract-month vs the back-adjusted
+    # continuous series built by data/continuous.py. Continuous gives far
+    # more history but its early segments' absolute prices are adjusted,
+    # not literal historical prices — see that module's docstring.
+    use_continuous: bool = False
+
     # indicators.swings
     fractal_n: int = 2
 

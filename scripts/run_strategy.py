@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from data.cache import load_latest
+from data.cache import drop_untraded_bars, load_continuous, load_latest
 from strategy.config import load_config
 from strategy.signals import generate_signals
 
@@ -24,13 +24,18 @@ def main() -> None:
     config_name = sys.argv[1] if len(sys.argv) > 1 else "GC_1day"
     config = load_config(config_name)
 
-    df = load_latest(config.symbol, config.timeframe)
+    df = load_continuous(config.symbol, config.timeframe) if config.use_continuous else None
+    if df is None:
+        df = load_latest(config.symbol, config.timeframe)
     if df is None:
         print(
             f"No cached data for {config.symbol} / {config.timeframe} — "
-            "run scripts/fetch_all_instruments.py first."
+            "run scripts/fetch_all_instruments.py "
+            f"{'or scripts/build_continuous_contracts.py ' if config.use_continuous else ''}first."
         )
         sys.exit(1)
+
+    df = drop_untraded_bars(df)  # drop IBKR pre-listing placeholder bars — see data/cache.py
 
     print(f"Loaded {len(df)} {config.timeframe} bars for {config.symbol}")
     print(f"Config: {config}\n")

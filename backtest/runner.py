@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 from backtest.engine import Trade, compute_metrics, simulate_trades
-from data.cache import load_latest
+from data.cache import drop_untraded_bars, load_continuous, load_latest
 from data.contracts import load_instruments
 from strategy.config import StrategyConfig
 from strategy.signals import generate_signals
@@ -35,21 +35,43 @@ def run_backtest(
     Load cached data for config.symbol/config.timeframe, generate signals,
     simulate trades, and return (trades, metrics). Raises FileNotFoundError
     if no cached data exists for that instrument/timeframe.
+
+    config.use_continuous selects the back-adjusted continuous series
+    (data/continuous.py) instead of the latest single contract-month —
+    far more history, at the cost of early segments' prices being
+    adjusted rather than literal.
     """
-    df = load_latest(config.symbol, config.timeframe)
+    df = load_continuous(config.symbol, config.timeframe) if config.use_continuous else None
+    if df is None and config.use_continuous:
+        raise FileNotFoundError(
+            f"No cached continuous series for {config.symbol}/{config.timeframe} — "
+            "run scripts/build_continuous_contracts.py first."
+        )
+    if df is None:
+        df = load_latest(config.symbol, config.timeframe)
     if df is None:
         raise FileNotFoundError(
             f"No cached data for {config.symbol}/{config.timeframe} — "
             "run scripts/fetch_all_instruments.py first."
         )
 
+    # Zero-volume bars are IBKR placeholder data from before a contract was
+    # actively traded (flat OHLC, no real price discovery) — see
+    # data.cache.drop_untraded_bars. Left in raw cache, filtered here since
+    # they'd otherwise masquerade as trivial "trading ranges."
+    df = drop_untraded_bars(df)
+
     if start_date or end_date:
-        ts = pd.to_datetime(df["date"])
+        # Compare by date only (not full Timestamp) so this works whether
+        # the 'date' column holds tz-naive daily dates or tz-aware hourly
+        # timestamps — a bare pd.Timestamp(start_date) is tz-naive and
+        # would fail comparing directly against tz-aware hourly data.
+        bar_dates = df["date"].map(lambda v: pd.Timestamp(v).date())
         mask = pd.Series(True, index=df.index)
         if start_date:
-            mask &= ts >= pd.Timestamp(start_date)
+            mask &= bar_dates >= pd.Timestamp(start_date).date()
         if end_date:
-            mask &= ts <= pd.Timestamp(end_date)
+            mask &= bar_dates <= pd.Timestamp(end_date).date()
         df = df[mask].reset_index(drop=True)
 
     signals = generate_signals(df, config)
