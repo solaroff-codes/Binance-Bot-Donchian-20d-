@@ -19,6 +19,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
 # Backtest output
 backtest/output/
 *.log

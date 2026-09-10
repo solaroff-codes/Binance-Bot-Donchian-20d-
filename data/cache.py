@@ -33,6 +33,24 @@ def load(symbol: str, timeframe: str, contract_month: str) -> pd.DataFrame | Non
     return None
 
 
+def load_latest(symbol: str, timeframe: str) -> pd.DataFrame | None:
+    """
+    Load the most recently-active cached contract-month for symbol/timeframe
+    (contract expiries only move forward as rolls happen, so the lexically
+    greatest YYYYMMDD filename is always the latest roll). Useful when the
+    caller just wants "the current front-month data" without separately
+    tracking which specific contract that currently is.
+    """
+    timeframe_slug = timeframe.replace(" ", "_")
+    dir_path = CACHE_ROOT / symbol / timeframe_slug
+    if not dir_path.exists():
+        return None
+    files = sorted(dir_path.glob("*.parquet"))
+    if not files:
+        return None
+    return pd.read_parquet(files[-1])
+
+
 def save(symbol: str, timeframe: str, contract_month: str, df: pd.DataFrame) -> Path:
     path = _cache_path(symbol, timeframe, contract_month)
     path.parent.mkdir(parents=True, exist_ok=True)

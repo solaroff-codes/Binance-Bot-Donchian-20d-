@@ -15,25 +15,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
+from data.cache import load_latest
 from indicators.fibonacci import fib_levels
 from indicators.swings import alternate_swings, get_swing_points
 from indicators.wyckoff import detect_trading_ranges, label_bar_state
 
-CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "cache" / "GC" / "1_day"
-
-
-def _latest_cache_file() -> Path:
-    files = sorted(CACHE_DIR.glob("*.parquet"))
-    if not files:
-        print(f"No cached data in {CACHE_DIR} — run scripts/fetch_all_instruments.py first.")
-        sys.exit(1)
-    return files[-1]  # filenames are contract expiry (YYYYMMDD) — latest-named is most recent roll
-
 
 def main() -> None:
-    cache_file = _latest_cache_file()
-    df = pd.read_parquet(cache_file)
-    print(f"Loaded {len(df)} daily GC bars from {cache_file.name}")
+    df = load_latest("GC", "1 day")
+    if df is None:
+        print("No cached GC daily data — run scripts/fetch_all_instruments.py first.")
+        sys.exit(1)
+    print(f"Loaded {len(df)} daily GC bars from cache")
 
     raw_points = get_swing_points(df, n=2)
     points = alternate_swings(raw_points)
