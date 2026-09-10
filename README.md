@@ -1,10 +1,12 @@
-# Quant Research — Wyckoff / Fibonacci / Elliott Wave
+# Quant Research — Wyckoff / Fibonacci / Elliott Wave + Trendlines
 
-Personal research project: a modular system for backtesting a
-discretionary-turned-systematic strategy (Wyckoff accumulation/distribution +
-Fibonacci retracements + Elliott Wave confluence) across gold futures (GC,
-COMEX), crude oil futures (CL, NYMEX), and equity index futures (ES, NQ,
-CME). Data and execution via Interactive Brokers. No crypto for now.
+Personal research project: a modular system for backtesting discretionary-
+turned-systematic strategies across gold futures (GC, COMEX), crude oil
+futures (CL, NYMEX), and equity index futures (ES, NQ, CME). Two
+independent strategies live here — a Wyckoff accumulation/distribution +
+Fibonacci retracement + Elliott Wave confluence rule, and a multi-timeframe
+trendline bounce/break cascade (monthly→weekly→daily→4h→1h). Data and
+execution via Interactive Brokers. No crypto for now.
 
 ## Layout
 
@@ -16,17 +18,22 @@ CME). Data and execution via Interactive Brokers. No crypto for now.
   stitching across multiple historical contract months (`continuous.py`)
 - `indicators/` — reusable indicator functions: swing high/low detection
   (`swings.py`), Fibonacci retracement/extension levels (`fibonacci.py`),
-  Wyckoff trading range detection (`wyckoff.py`)
-- `strategy/` — config-driven entry/exit signal logic combining the three
-  indicator modules into confluence signals (`signals.py`), configs in
-  `config/strategies/*.yaml`
-- `backtest/` — trade simulation + performance metrics (`engine.py`), a
-  runner that sweeps multiple instrument configs into one comparable
-  summary (`runner.py`), and a parameter-grid sweep utility (`sweep.py`)
+  Wyckoff trading range detection (`wyckoff.py`), trendline fitting +
+  bounce/break events (`trendlines.py`)
+- `strategy/` — config-driven entry/exit signal logic, two independent
+  strategies: the Wyckoff/Fib/Elliott Wave confluence rule (`signals.py`,
+  configs in `config/strategies/*.yaml`) and the multi-timeframe trendline
+  cascade (`trendline_signals.py`, configs in
+  `config/trendline_strategies/*.yaml`) — see `strategy/README.md`
+- `backtest/` — trade simulation + performance metrics (`engine.py`,
+  shared by both strategies), a runner that sweeps multiple instrument
+  configs into one comparable summary (`runner.py`), and a parameter-grid
+  sweep utility (`sweep.py`)
 - `paper/` — live paper-trading executor. Phase 3, not yet built.
 - `scripts/` — runnable entry points: `fetch_all_instruments.py`,
   `build_continuous_contracts.py`, `run_strategy.py`, `run_backtest.py`,
-  `sweep_params.py`, `sweep_entry_exit.py`, plus smoke-test/sanity scripts
+  `run_trendline_backtest.py`, `sweep_params.py`, `sweep_entry_exit.py`,
+  plus smoke-test/sanity scripts
 - `tests/` — automated tests (pytest) — one file per module
 
 ## Setup
@@ -85,31 +92,45 @@ python scripts\run_strategy.py GC_1day               # generate signals for one 
 python scripts\run_backtest.py                       # simulate trades + metrics for every config, or pass names
 python scripts\sweep_params.py                       # search range-detection thresholds per instrument/timeframe/source
 python scripts\sweep_entry_exit.py                   # search entry/exit params around a known-productive threshold
+python scripts\run_trendline_backtest.py              # trendline cascade: every config, or pass names
 ```
 
 ## Status
 
-Data connector, indicators, strategy signal generation, the backtest
-engine, parameter-grid sweeping, and continuous-contract stitching are all
-built and verified against real cached data (33 unit tests passing; see
-each folder's README for details, especially `backtest/README.md`'s
-"Current results" for the full findings).
+Data connector, indicators, both strategies' signal generation, the shared
+backtest engine, parameter-grid sweeping, and continuous-contract
+stitching are all built and verified against real cached data (43 unit
+tests passing; see each folder's README for details, especially
+`backtest/README.md`'s "Current results" and "Trendline cascade strategy
+results" sections for the full findings).
 
-Headline finding so far: **CL shows the most consistent edge** of any
-instrument tested — profit factor ~9-14 at `range_max_pct=0.08` on 1-hour
-bars, confirmed across both single-contract and continuous-contract data
-independently. GC looks promising but its best result doesn't fully
-replicate across datasets (worth skepticism). ES has not produced a
-tradeable configuration in any test run. NQ is promising but under-sampled
-(low single digits of trades). None of these sample sizes are yet large
+Headline findings so far, across both strategies:
+- **Confluence strategy:** CL shows the most consistent edge — profit
+  factor ~9-14 at `range_max_pct=0.08` on 1-hour bars, confirmed across
+  both single-contract and continuous-contract data independently. GC
+  looks promising but doesn't fully replicate across datasets. ES has not
+  produced a tradeable configuration in any test. NQ is promising but
+  under-sampled.
+- **Trendline cascade strategy:** a different pattern — ES and NQ look
+  strongest here (profit factor 2.4-2.6, 17-25 trades), while GC is
+  essentially breakeven (profit factor 0.98) despite being one of the
+  confluence strategy's better instruments. Building and testing this
+  strategy also surfaced a real bug in `backtest/engine.py`: overlapping
+  signals were being double-counted as independent trades, invisible
+  until a strategy fired often enough to actually overlap. Now fixed
+  (`enforce_single_position`, default on).
+
+None of these sample sizes (17-54 trades in the best cells) are yet large
 enough for a real capital-allocation decision.
 
-Not yet built: a parameter-grid sweep of `retracement_zone` /
-`target_extension_ratio` specifically against the continuous-contract data
-(the existing one only used single-contract data), true historical
-volume-crossover rolls for continuous stitching (currently a simpler fixed
-days-before-expiry rule — documented tradeoff in `data/continuous.py`),
-and literal-price (non-back-adjusted) continuous series for anything that
-needs real historical price levels rather than point-difference-preserving
-adjusted ones. Paper trading (`paper/`) is phase 3 and intentionally
-untouched until a config is validated through backtesting.
+Not yet built: a parameter-grid sweep of the trendline strategy's own
+parameters (touch tolerance, break buffer, target R-multiple, which
+timeframes set bias vs trigger), running either strategy against
+continuous-contract data for the newer monthly/weekly/4h timeframes, true
+historical volume-crossover rolls for continuous stitching (currently a
+simpler fixed days-before-expiry rule — documented tradeoff in
+`data/continuous.py`), and literal-price (non-back-adjusted) continuous
+series for anything that needs real historical price levels rather than
+point-difference-preserving adjusted ones. Paper trading (`paper/`) is
+phase 3 and intentionally untouched until a config is validated through
+backtesting.

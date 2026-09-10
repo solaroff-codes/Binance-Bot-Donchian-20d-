@@ -1,7 +1,7 @@
 """
 Pull and cache historical bars for every instrument in config/instruments.yaml
-(GC, CL, ES, NQ): resolves each front-month contract, fetches daily and
-1-hour bars, and writes them to the parquet cache.
+(GC, CL, ES, NQ): resolves each front-month contract, fetches monthly,
+weekly, daily, 4-hour, and 1-hour bars, and writes them to the parquet cache.
 
 Unlike scripts/test_connector.py (a single-symbol connectivity smoke test),
 this is the general-purpose "populate the cache" utility — run it whenever
@@ -33,10 +33,16 @@ from data import cache
 from data.contracts import load_instruments, resolve_front_month
 from data.ibkr_connector import IBKRConnector
 
-# (timeframe, duration) pairs pulled for each instrument. "2 Y" is a request
-# ceiling, not a guarantee — see module docstring.
+# (timeframe, duration) pairs pulled for each instrument. Duration is a
+# request ceiling, not a guarantee — see module docstring. Added for the
+# trendline cascade strategy (monthly -> weekly -> daily -> 4h -> 1h):
+# 1 month/1 week/4 hours are all valid IBKR bar sizes, verified directly
+# against a live connection before adding them here.
 TIMEFRAMES = [
+    ("1 month", "20 Y"),
+    ("1 week", "15 Y"),
     ("1 day", "2 Y"),
+    ("4 hours", "2 Y"),
     ("1 hour", "2 Y"),
 ]
 

@@ -9,9 +9,16 @@ a dozen per symbol/timeframe for GC). Expect it to take a few minutes per
 symbol/timeframe combination, not seconds.
 
 Usage:
-    python scripts/build_continuous_contracts.py                       # all instruments, daily + 1hour
-    python scripts/build_continuous_contracts.py GC                    # one instrument, both timeframes
-    python scripts/build_continuous_contracts.py GC --timeframe "1 day"  # one instrument, one timeframe
+    python scripts/build_continuous_contracts.py                         # all instruments, all timeframes
+    python scripts/build_continuous_contracts.py GC                      # one instrument, all timeframes
+    python scripts/build_continuous_contracts.py GC --timeframe="1 day"  # one instrument, one timeframe
+
+Note on monthly/weekly depth: continuous stitching is still bounded by how
+many expired contracts IBKR has on file (~1.5-3 years depending on
+instrument — see data/continuous.py), regardless of bar size. A "monthly"
+trendline built from this data reflects that same ~1.5-3 year window, not
+decades of macro history — it's a longer-term swing trendline, not a true
+multi-decade one.
 """
 
 import sys
@@ -23,7 +30,15 @@ from data.continuous import build_and_cache_continuous
 from data.contracts import load_instruments
 from data.ibkr_connector import IBKRConnector
 
-TIMEFRAMES = ["1 day", "1 hour"]
+# timeframe -> duration requested per historical contract (a ceiling, not
+# a guarantee — see data/continuous.py's docstring).
+TIMEFRAME_DURATIONS = {
+    "1 month": "20 Y",
+    "1 week": "15 Y",
+    "1 day": "2 Y",
+    "4 hours": "2 Y",
+    "1 hour": "2 Y",
+}
 
 
 def main() -> None:
@@ -31,7 +46,7 @@ def main() -> None:
     timeframe_arg = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--timeframe=")), None)
 
     symbols = args if args else list(load_instruments().keys())
-    timeframes = [timeframe_arg] if timeframe_arg else TIMEFRAMES
+    timeframes = [timeframe_arg] if timeframe_arg else list(TIMEFRAME_DURATIONS.keys())
 
     # 4001 = IB Gateway, live/regular account, Read-Only API enabled.
     connector = IBKRConnector(port=4001)
@@ -44,9 +59,10 @@ def main() -> None:
     try:
         for symbol in symbols:
             for timeframe in timeframes:
+                duration = TIMEFRAME_DURATIONS.get(timeframe, "2 Y")
                 print(f"\n=== {symbol} {timeframe} ===")
                 try:
-                    df = build_and_cache_continuous(connector, symbol, timeframe)
+                    df = build_and_cache_continuous(connector, symbol, timeframe, duration=duration)
                     if df.empty:
                         print("  no data assembled")
                     else:

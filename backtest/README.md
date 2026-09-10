@@ -13,6 +13,18 @@ run and writing results in a comparable format.
     module docstring** (entry at the signal's own best-case price, stop
     wins a same-bar tie with target, unresolved signals marked `'open'`) —
     this is a first-pass backtest, not a realistic fill/slippage model.
+    `enforce_single_position=True` (default): signals are processed in
+    entry order and any signal that would open while a prior trade is
+    still open is skipped — a real account can't take a second independent
+    position on top of one it's already in. This was a real bug found
+    while testing the trendline cascade strategy (see below): it fires
+    often enough that overlapping "trades" (e.g. two same-direction
+    entries an hour apart) were being counted as independent bets,
+    inflating apparent trade count and profit factor. The sparser
+    confluence strategy never had enough signal density to expose this.
+    `signals: list[SignalLike]` — a `Protocol`, not a concrete import of
+    `strategy.signals.Signal`, so both strategies' signal types work here
+    without this module depending on either.
   - `compute_metrics(trades)` — aggregates a trade list into win rate,
     profit factor, avg R-multiple, `sharpe_r` (a trade-level Sharpe-like
     ratio on R-multiples — explicitly **not** an annualized time-series
@@ -227,3 +239,41 @@ trades in the largest cells) are still small for a real go/no-go decision
 existing entry/exit sweep above only used single-contract data), and/or
 extend the confluence rule to more instruments' historical data as it
 becomes available (e.g. CL/ES's 3-year depth vs GC/NQ's ~1.5 years).
+
+## Trendline cascade strategy results
+
+`scripts/run_trendline_backtest.py`, default configs (monthly/weekly/
+daily/4h bias -> 1h trigger, single-contract data — see
+`strategy/README.md` for the strategy itself). This strategy fires far
+more often than the confluence one: 17-54 trades per instrument on the
+same ~1-2 years of single-contract data that gave the confluence strategy
+1-22.
+
+That signal density is what surfaced the `enforce_single_position` bug in
+`engine.py` (documented above) — the first run, before that fix, showed
+32-203 "signals" per instrument, several of them literally overlapping
+same-direction entries an hour or a day apart. Every number below is
+*after* the fix.
+
+| Symbol | Trades | Win rate | Profit factor | Total P&L | Max drawdown |
+|---|---|---|---|---|---|
+| CL | 54 | 43% | 1.69 | +$25,387 | $9,698 |
+| ES | 17 | 53% | 2.57 | +$38,754 | $12,297 |
+| GC | 19 | 47% | 0.98 | -$2,227 | $34,979 |
+| NQ | 25 | 54% | 2.40 | +$90,455 | $18,919 |
+
+Notably different picture from the confluence strategy: here **ES and NQ
+look like the strongest instruments** (profit factor >2.4 each, GC and CL
+were the confluence strategy's better performers), and **GC is
+essentially breakeven** (profit factor 0.98 — a coin flip after costs,
+not a result worth trading) despite GC being one of the confluence
+strategy's two working instruments. Worth taking at face value as "these
+are two different rules with different instrument fit," not as one
+strategy being more correct than the other.
+
+Sample sizes (17-54 trades) are larger than any single cell of the
+confluence-strategy sweeps, but still not enough on their own for a real
+capital-allocation decision, and this has not yet been tested against the
+continuous-contract series or with the bias-timeframe set changed (e.g.
+weekly+daily only, or including a 4h trigger alongside 1h) — see
+`strategy/README.md` for the cascade design and what's configurable.

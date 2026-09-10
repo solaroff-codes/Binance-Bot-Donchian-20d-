@@ -1,0 +1,19 @@
+# Trendline cascade for GC (gold futures).
+# Monthly/weekly/daily/4h set bias; 1h fires the actual entry.
+# See strategy/trendline_config.py for what each field controls.
+
+symbol: GC
+bias_timeframes: ["1 month", "1 week", "1 day", "4 hours"]
+trigger_timeframe: "1 hour"
+use_continuous: false
+
+fractal_n: 2
+max_pivots: 20
+touch_tolerance_pct: 0.002
+break_buffer_pct: 0.002
+
+stop_buffer_pct: 0.005
+target_r_multiple: 2.0
+
+allow_bounce: true
+allow_break: true
