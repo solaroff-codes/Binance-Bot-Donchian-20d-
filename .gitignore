@@ -1,0 +1,24 @@
+# Virtual environment
+.venv/
+
+# Cached market data (regenerable from IBKR, keep out of git)
+data/cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Env / secrets
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Backtest output
+backtest/output/
+*.log

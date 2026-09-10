@@ -1,0 +1,13 @@
+# IBKR API client (actively maintained fork of the now-archived ib_insync)
+ib_async
+
+# Data handling
+pandas
+pyarrow
+numpy
+
+# Config
+PyYAML
+
+# Testing (used by indicators/strategy in later sessions)
+pytest

@@ -1,0 +1,36 @@
+# Instrument definitions used by data/contracts.py to build IBKR Future
+# contracts and resolve the current front-month expiry.
+#
+# secType is always "FUT" for these — index/commodity futures, not the
+# underlying cash instrument. Add new instruments here rather than hardcoding
+# them in code.
+
+GC:
+  description: "Gold futures"
+  secType: FUT
+  exchange: COMEX
+  currency: USD
+  multiplier: "100"
+
+CL:
+  description: "Crude oil futures (WTI)"
+  secType: FUT
+  exchange: NYMEX
+  currency: USD
+  multiplier: "1000"
+
+ES:
+  description: "E-mini S&P 500 futures"
+  secType: FUT
+  exchange: CME
+  currency: USD
+  multiplier: "50"
+
+NQ:
+  description: "E-mini Nasdaq-100 futures"
+  secType: FUT
+  exchange: CME
+  currency: USD
+  multiplier: "20"
+
+# Crypto instruments intentionally omitted — separate future phase.
