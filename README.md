@@ -12,15 +12,19 @@ CME). Data and execution via Interactive Brokers. No crypto for now.
 - `data/` — IBKR connector (`ibkr_connector.py`), futures front-month
   resolution (`contracts.py`), and local parquet cache (`cache.py`, backed
   by `data/cache/`, which is gitignored)
-- `indicators/` — reusable indicator functions (Fibonacci levels, Wyckoff
-  phase/range detection, swing high/low detection). Not yet built.
-- `strategy/` — config-driven entry/exit signal logic combining indicators.
-  Not yet built.
-- `backtest/` — backtest engine + performance metrics, supports sweeping
-  instruments/params. Not yet built.
+- `indicators/` — reusable indicator functions: swing high/low detection
+  (`swings.py`), Fibonacci retracement/extension levels (`fibonacci.py`),
+  Wyckoff trading range detection (`wyckoff.py`)
+- `strategy/` — config-driven entry/exit signal logic combining the three
+  indicator modules into confluence signals (`signals.py`), configs in
+  `config/strategies/*.yaml`
+- `backtest/` — trade simulation + performance metrics (`engine.py`), and
+  a runner that sweeps multiple instrument configs into one comparable
+  summary (`runner.py`)
 - `paper/` — live paper-trading executor. Phase 3, not yet built.
-- `scripts/` — one-off/manual scripts, e.g. `test_connector.py`
-- `tests/` — automated tests (pytest)
+- `scripts/` — runnable entry points: `fetch_all_instruments.py`,
+  `run_strategy.py`, `run_backtest.py`, plus smoke-test/sanity scripts
+- `tests/` — automated tests (pytest) — one file per module
 
 ## Setup
 
@@ -59,8 +63,28 @@ Re-running a script that requests already-cached data reads from disk
 instead of hitting the IBKR API again; pass `force_refresh=True` to
 `data.cache.fetch_or_load` to bypass the cache.
 
+## Running the pipeline end to end
+
+```powershell
+python scripts\fetch_all_instruments.py   # populate/refresh the parquet cache for GC/CL/ES/NQ
+python scripts\run_strategy.py GC_1day    # generate signals for one config
+python scripts\run_backtest.py            # simulate trades + metrics for every config, or pass names
+```
+
 ## Status
 
-Phase 1 (this pass): project scaffold + IBKR data connector with parquet
-caching and front-month rollover. Indicators, strategy, and backtest logic
-come next, one at a time. Paper trading is phase 3.
+Data connector, indicators, strategy signal generation, and the backtest
+engine are all built and verified against real cached data (23 unit tests
+passing; see each folder's README for details). With the strategy
+modules' current default (fairly tight) range-detection thresholds, a
+sweep across GC/CL/ES/NQ daily bars currently finds 0 signals — none of
+them have had a qualifying consolidation recently, which is the correct
+result given current market conditions, not a bug. The full pipeline has
+been separately confirmed to produce real trades/P&L/drawdown using
+loosened thresholds.
+
+Not yet built: a parameter-grid sweep (currently `run_sweep` takes an
+explicit list of configs, one set of params per instrument) and any
+intraday/1-hour strategy configs (only daily configs exist so far). Paper
+trading (`paper/`) is phase 3 and intentionally untouched until a config
+is validated through backtesting.
