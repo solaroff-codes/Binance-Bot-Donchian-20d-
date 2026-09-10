@@ -515,3 +515,64 @@ win-rate numbers in every section above this one should be read as upper
 bounds under favorable, cost-free, best-of-many conditions — not as
 realistic expectations. The "honest backtest" section above is the one
 that actually tries to answer "would this have made money."
+
+## Crypto: BTC, ETH, SOL (Binance, 6 years, same honest treatment)
+
+`scripts/run_crypto_realistic_backtest.py` — same realistic costs, $10k
+account with 1-2% dollar-risk position sizing, and train/test split as the
+futures "honest backtest" above, applied to 6 years of Binance spot data
+(`data/binance_connector.py`, `config/crypto_instruments.yaml`). One
+structural difference, forced by performance: crypto's trigger timeframe
+is daily, not hourly — see `config/trendline_strategies/BTC.yaml`'s
+comment; `walk_forward_trendlines`'s refit cost blew up badly on crypto's
+much higher volatility (far more swing pivots per bar than futures data
+has at the same bar count), extrapolating to ~3.5 hours for BTC's 6y of 1h
+data versus 33s for its 2,192 daily bars. Sub-daily crypto isn't tested.
+
+### Sizing was never the constraint here — something else was
+
+Unlike the futures instruments, crypto's fractional position sizing
+(0.0001 BTC/ETH/SOL "lots") makes every signal trivially affordable — the
+most expensive signal in this whole run needed **$0.07** of a $10,000
+account. That's not the finding. The finding is this:
+
+**Every signal any of the three symbols produced, at every parameter
+combination tested (across 6 years of data), falls inside a 20-month
+window from early 2021 to May 2022 — the COVID-era crypto boom and its
+subsequent crash.** Verified directly, not assumed: at the loosest tested
+parameters, BTC produced 39 signals (33 in 2021, 6 in 2022, none after
+2022-05-24), ETH produced 34 (same pattern, last one 2022-05-27), SOL
+produced 61 (last one 2022-05-31). **Zero signals in over four years
+since** — despite BTC alone rallying from ~$16-20k at the 2022 low to
+over $77k by the time this was tested, one of the largest sustained bull
+markets in the entire dataset.
+
+This means the train/test split couldn't test anything for crypto: the
+split point (70% through 6 years) falls in November 2024 — two and a half
+years *after* the last signal any configuration ever produced. Every
+single trade in every crypto result is a training-period trade by
+construction, and every "test" row in `output/crypto_realistic_backtest.csv`
+shows 0 trades, for all three symbols, both risk levels, both exit types,
+without exception.
+
+| Symbol | Exit | Train trades | Win rate | Profit factor | Test trades |
+|---|---|---|---|---|---|
+| BTC | fixed target | 19 | 53% | 1.53 | **0** |
+| BTC | trailing stop | 25 | 28% | 0.56 | **0** |
+| ETH | fixed target | 16 | 69% | 4.14 | **0** |
+| ETH | trailing stop | 18 | 39% | 3.45 | **0** |
+| SOL | fixed target | 15 | 53% | 3.28 | **0** |
+| SOL | trailing stop | 42 | 36% | 2.18 | **0** |
+
+Read the profit-factor column with the same skepticism as everything in
+the "why the sections above are misleading" section — except more so
+here: these aren't even "best of a sweep on a favorable window," they're
+the *entire signal history* of one specific, unrepeated market event (a
+speculative mania and its crash). There is no out-of-sample evidence for
+crypto at all, in either direction — not "it failed out of sample" like
+CL, but "there was no out-of-sample period with any signal in it to
+evaluate." Whatever this strategy configuration is capturing, it hasn't
+been relevant to BTC/ETH/SOL since mid-2022, through a bear market bottom,
+a multi-year recovery, and a fresh all-time high — none of which produced
+a single bounce or break event this rule recognizes, at any parameter
+setting tried.

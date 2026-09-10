@@ -3,20 +3,23 @@
 Personal research project: a modular system for backtesting discretionary-
 turned-systematic strategies across gold (GC, COMEX), silver (SI, COMEX),
 WTI crude oil (CL, NYMEX), Brent crude oil (BZ, NYMEX), and equity index
-futures (ES, NQ, CME). Two independent strategies live here — a Wyckoff
-accumulation/distribution + Fibonacci retracement + Elliott Wave confluence
-rule, and a multi-timeframe trendline bounce/break cascade
-(monthly→weekly→daily→4h→1h). Data and execution via Interactive Brokers.
-No crypto for now.
+futures (ES, NQ, CME) via Interactive Brokers, plus BTC/ETH/SOL via
+Binance's public spot-market API. Two independent strategies live here —
+a Wyckoff accumulation/distribution + Fibonacci retracement + Elliott Wave
+confluence rule, and a multi-timeframe trendline bounce/break cascade
+(monthly→weekly→daily→[4h→1h for futures]).
 
 ## Layout
 
-- `config/` — instrument definitions (`instruments.yaml`), strategy configs
+- `config/` — IBKR instrument definitions (`instruments.yaml`), crypto
+  instrument definitions (`crypto_instruments.yaml`), strategy configs
   (`strategies/*.yaml`, including `*_continuous.yaml` variants)
 - `data/` — IBKR connector (`ibkr_connector.py`), futures front-month
-  resolution (`contracts.py`), local parquet cache (`cache.py`, backed by
-  `data/cache/`, gitignored), and back-adjusted continuous-contract
-  stitching across multiple historical contract months (`continuous.py`)
+  resolution (`contracts.py`), Binance public-API connector for crypto
+  (`binance_connector.py`, no auth needed), local parquet cache
+  (`cache.py`, backed by `data/cache/`, gitignored), and back-adjusted
+  continuous-contract stitching across multiple historical contract
+  months (`continuous.py`)
 - `indicators/` — reusable indicator functions: swing high/low detection
   (`swings.py`), Fibonacci retracement/extension levels (`fibonacci.py`),
   Wyckoff trading range detection (`wyckoff.py`), trendline fitting +
@@ -33,8 +36,9 @@ No crypto for now.
   (`runner.py`), and a parameter-grid sweep utility (`sweep.py`)
 - `paper/` — live paper-trading executor. Phase 3, not yet built.
 - `scripts/` — runnable entry points: `fetch_all_instruments.py`,
-  `build_continuous_contracts.py`, `run_strategy.py`, `run_backtest.py`,
-  `run_trendline_backtest.py`, `run_realistic_backtest.py`,
+  `fetch_crypto_data.py`, `build_continuous_contracts.py`,
+  `run_strategy.py`, `run_backtest.py`, `run_trendline_backtest.py`,
+  `run_realistic_backtest.py`, `run_crypto_realistic_backtest.py`,
   `sweep_params.py`, `sweep_entry_exit.py`, `sweep_trendline_params.py`,
   `run_combined_confluence.py`, plus smoke-test/sanity scripts
 - `tests/` — automated tests (pytest) — one file per module
@@ -96,15 +100,18 @@ python scripts\run_backtest.py                       # simulate trades + metrics
 python scripts\sweep_params.py                       # search range-detection thresholds per instrument/timeframe/source
 python scripts\sweep_entry_exit.py                   # search entry/exit params around a known-productive threshold
 python scripts\run_trendline_backtest.py              # trendline cascade: every config, or pass names
+python scripts\fetch_crypto_data.py                   # pull 6y of BTC/ETH/SOL from Binance (no auth needed)
+python scripts\run_crypto_realistic_backtest.py       # same honest treatment, applied to crypto
 ```
 
 ## Status
 
-Data connector, indicators, both strategies' signal generation, the shared
-backtest engine (now with realistic transaction costs and dollar-risk
-position sizing), a trailing-stop exit variant, and continuous-contract
-stitching are all built and verified against real cached data (49 unit
-tests passing; see each folder's README for details).
+Data connectors (IBKR + Binance), indicators, both strategies' signal
+generation, the shared backtest engine (now with realistic transaction
+costs and dollar-risk position sizing, including a percentage-of-notional
+commission model for crypto), a trailing-stop exit variant, and
+continuous-contract stitching are all built and verified against real
+cached data (52 unit tests passing; see each folder's README for details).
 
 **Read `backtest/README.md`'s "The honest backtest" section first** — it
 supersedes every profit-factor/win-rate figure reported anywhere else in
@@ -133,6 +140,15 @@ genuine train/test split were added:
   head-to-head comparison run — it exited winners earlier without
   meaningfully reducing drawdown, and in one case was net losing where the
   fixed-target version was profitable.
+- **BTC/ETH/SOL (6 years of Binance data) found zero signals of any kind
+  since May 2022**, at every parameter combination tested. Every signal
+  any of the three ever produced falls in a 20-month window from early
+  2021 to mid-2022 — the COVID-era crypto boom and its crash — despite
+  BTC alone rallying from ~$16-20k to $77k+ since. There is no
+  out-of-sample data for crypto at all: the entire signal history
+  predates the train/test split point by two and a half years. Not a
+  bug — verified directly across all three symbols and every tested
+  parameter combination.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined
@@ -145,8 +161,13 @@ Not yet built: extending the realistic-cost/sizing/train-test treatment to
 the confluence strategy (only the trendline cascade has been put through
 it so far), building or sourcing a true micro Brent contract or accepting
 BZ needs a larger account, continuous-contract data for Silver/Brent
-(single-contract only so far), and true historical volume-crossover rolls
-for continuous stitching (currently a simpler fixed days-before-expiry
-rule — documented tradeoff in `data/continuous.py`). Paper trading
-(`paper/`) is phase 3 and intentionally untouched until a config is
+(single-contract only so far), true historical volume-crossover rolls for
+continuous stitching (currently a simpler fixed days-before-expiry rule —
+documented tradeoff in `data/continuous.py`), a cascade-structure sweep
+for crypto (skipped — sub-daily crypto data isn't computationally
+tractable with the current walk-forward trendline fit; see
+`backtest/README.md`'s crypto section), and a faster
+`walk_forward_trendlines` refit strategy in general, which would unblock
+both of those. Paper trading (`paper/`) is phase 3 and intentionally
+untouched until a config is
 validated through backtesting — which, per the above, none currently are.
