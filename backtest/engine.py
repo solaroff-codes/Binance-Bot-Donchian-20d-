@@ -27,6 +27,23 @@ realistic fill/slippage model):
     enforce_single_position=False to restore the old "every signal is an
     independent trade" behavior.
 
+cost_model / position_sizer (both optional, default None = old behavior
+unchanged, fully backward compatible):
+  - CostModel adds slippage (a fixed number of ticks, applied unfavorably
+    on both entry and exit — e.g. a long pays slip on the buy and gives up
+    slip on the sell) and a flat round-turn commission per contract. Real
+    numbers, not modeled before this — every profit-factor figure reported
+    earlier in this project's history had zero transaction costs in it.
+  - PositionSizer replaces the implicit "1 contract per trade" assumption
+    with dollar-risk sizing: contracts = floor(account_size *
+    risk_pct_per_trade / (risk_points * multiplier)). A signal that can't
+    even size 1 contract within the risk budget is skipped entirely (not
+    floored up to 1, which would silently blow through the risk budget) —
+    pass a list to skip_log to see what got skipped and why. This can
+    matter a lot for wide-stop instruments on a small account: a single CL
+    contract's stop-loss risk is easily $1,000+, which alone can exceed a
+    1-2% budget on a $10k account.
+
 'sharpe_r' is a trade-level Sharpe-like ratio (mean/std of R-multiples,
 scaled by sqrt(n)) — it is NOT an annualized, time-series Sharpe ratio.
 Labeled explicitly so it isn't mistaken for one.
@@ -34,6 +51,7 @@ Labeled explicitly so it isn't mistaken for one.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -54,6 +72,29 @@ class SignalLike(Protocol):
 
 
 @dataclass(frozen=True)
+class CostModel:
+    """Per-fill transaction costs. slippage_ticks is applied once on entry
+    and once on exit (both unfavorably); tick_size must be given if
+    slippage_ticks > 0. commission_per_contract is a flat round-turn
+    dollar amount per contract (covers both the entry and exit fill)."""
+
+    slippage_ticks: float = 0.0
+    tick_size: float | None = None
+    commission_per_contract: float = 0.0
+
+
+@dataclass(frozen=True)
+class PositionSizer:
+    """Dollar-risk position sizing: risk_pct_per_trade of account_size
+    determines how many contracts a trade gets, given its own stop
+    distance. e.g. account_size=10_000, risk_pct_per_trade=0.02 -> each
+    trade risks up to $200."""
+
+    account_size: float
+    risk_pct_per_trade: float
+
+
+@dataclass(frozen=True)
 class Trade:
     entry_ts: pd.Timestamp
     exit_ts: pd.Timestamp | None
@@ -67,6 +108,48 @@ class Trade:
     pnl_points: float | None
     r_multiple: float | None
     pnl_dollars: float | None
+    contracts: int = 1
+
+
+def sized_and_costed_pnl(
+    direction: Literal["long", "short"],
+    entry_price: float,
+    exit_price: float,
+    risk_points: float,
+    multiplier: float,
+    cost_model: CostModel | None,
+    position_sizer: PositionSizer | None,
+) -> tuple[float, int] | None:
+    """Returns (pnl_dollars, contracts), or None if position_sizer would
+    size this trade at 0 contracts (skip it)."""
+    if position_sizer is not None:
+        if risk_points <= 0:
+            return None
+        risk_dollars_target = position_sizer.account_size * position_sizer.risk_pct_per_trade
+        contracts = math.floor(risk_dollars_target / (risk_points * multiplier))
+        if contracts < 1:
+            return None
+    else:
+        contracts = 1
+
+    fill_entry = entry_price
+    fill_exit = exit_price
+    if cost_model is not None and cost_model.slippage_ticks and cost_model.tick_size:
+        slip = cost_model.slippage_ticks * cost_model.tick_size
+        if direction == "long":
+            fill_entry += slip  # pay more to buy
+            fill_exit -= slip  # receive less to sell
+        else:
+            fill_entry -= slip  # receive less selling short
+            fill_exit += slip  # pay more to buy back
+
+    signed = 1 if direction == "long" else -1
+    pnl_points = signed * (fill_exit - fill_entry)
+    pnl_dollars = pnl_points * multiplier * contracts
+    if cost_model is not None:
+        pnl_dollars -= cost_model.commission_per_contract * contracts
+
+    return pnl_dollars, contracts
 
 
 def simulate_trades(
@@ -77,6 +160,9 @@ def simulate_trades(
     low_col: str = "low",
     timestamp_col: str = "date",
     enforce_single_position: bool = True,
+    cost_model: CostModel | None = None,
+    position_sizer: PositionSizer | None = None,
+    skip_log: list | None = None,
 ) -> list[Trade]:
     out = df.reset_index(drop=True)
     timestamps = out[timestamp_col]
@@ -124,11 +210,25 @@ def simulate_trades(
             pnl_points = None
             r_multiple = None
             pnl_dollars = None
+            contracts = 1
         else:
             signed = 1 if signal.direction == "long" else -1
             pnl_points = signed * (exit_price - signal.entry_price)
             r_multiple = pnl_points / risk_points if risk_points else None
-            pnl_dollars = pnl_points * multiplier
+
+            sized = sized_and_costed_pnl(
+                signal.direction, signal.entry_price, exit_price, risk_points,
+                multiplier, cost_model, position_sizer,
+            )
+            if sized is None:
+                if skip_log is not None:
+                    skip_log.append({
+                        "entry_ts": signal.entry_ts, "reason": "undersized",
+                        "risk_points": risk_points,
+                        "risk_dollars_at_1_contract": risk_points * multiplier,
+                    })
+                continue
+            pnl_dollars, contracts = sized
 
         trades.append(
             Trade(
@@ -144,6 +244,7 @@ def simulate_trades(
                 pnl_points=pnl_points,
                 r_multiple=r_multiple,
                 pnl_dollars=pnl_dollars,
+                contracts=contracts,
             )
         )
 
@@ -156,7 +257,7 @@ def simulate_trades(
     return trades
 
 
-def compute_metrics(trades: list[Trade]) -> dict:
+def compute_metrics(trades: list[Trade], account_size: float | None = None) -> dict:
     closed = [t for t in trades if t.outcome != "open"]
     wins = [t for t in closed if t.outcome == "win"]
     losses = [t for t in closed if t.outcome == "loss"]
@@ -197,5 +298,10 @@ def compute_metrics(trades: list[Trade]) -> dict:
         metrics["max_drawdown_dollars"] = float(drawdowns.max())
     else:
         metrics["max_drawdown_dollars"] = None
+
+    if account_size is not None and metrics["max_drawdown_dollars"] is not None:
+        metrics["max_drawdown_pct_of_account"] = metrics["max_drawdown_dollars"] / account_size
+    else:
+        metrics["max_drawdown_pct_of_account"] = None
 
     return metrics

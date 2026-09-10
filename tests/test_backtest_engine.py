@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from backtest.engine import Trade, compute_metrics, simulate_trades
+from backtest.engine import CostModel, PositionSizer, Trade, compute_metrics, simulate_trades
 from strategy.signals import Signal
 
 
@@ -144,6 +144,72 @@ def test_simulate_trades_can_disable_single_position_enforcement():
 
     trades = simulate_trades(df, [sig1, sig2], multiplier=1.0, enforce_single_position=False)
     assert len(trades) == 2
+
+
+def test_simulate_trades_applies_slippage_and_commission():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 111, 111], "low": [95, 99, 99], "close": [100, 110, 110]}
+    )
+    signal = _signal(entry_ts=dates[0], stop_price=95, target_price=110)
+
+    baseline = simulate_trades(df, [signal], multiplier=100)
+    assert baseline[0].pnl_dollars == 1000  # (110-100)*100, no costs
+
+    costed = simulate_trades(
+        df, [signal], multiplier=100,
+        cost_model=CostModel(slippage_ticks=1, tick_size=0.1, commission_per_contract=5.0),
+    )
+    t = costed[0]
+    # fill_entry = 100 + 0.1 = 100.1 (pay more to buy); fill_exit = 110 - 0.1 = 109.9 (receive less)
+    assert t.pnl_dollars == pytest.approx((109.9 - 100.1) * 100 - 5.0)
+    assert t.contracts == 1
+
+
+def test_simulate_trades_position_sizer_computes_contracts():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 106, 106], "low": [98, 100, 100], "close": [100, 105, 105]}
+    )
+    # risk_points=1, multiplier=100 -> $100 risk per contract. $10k account,
+    # 2% risk -> $200 budget -> 2 contracts.
+    signal = _signal(entry_ts=dates[0], stop_price=99, target_price=105)
+
+    trades = simulate_trades(
+        df, [signal], multiplier=100,
+        position_sizer=PositionSizer(account_size=10_000, risk_pct_per_trade=0.02),
+    )
+    assert len(trades) == 1
+    assert trades[0].contracts == 2
+    assert trades[0].pnl_dollars == pytest.approx((105 - 100) * 100 * 2)
+
+
+def test_simulate_trades_skips_signal_that_cannot_size_even_one_contract():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 106, 106], "low": [89, 99, 99], "close": [100, 105, 105]}
+    )
+    # risk_points=10, multiplier=1000 -> $10,000 risk for just 1 contract,
+    # but the budget is only $100 (1% of $10k) -> can't take this trade at all.
+    signal = _signal(entry_ts=dates[0], stop_price=90, target_price=105)
+
+    skip_log = []
+    trades = simulate_trades(
+        df, [signal], multiplier=1000,
+        position_sizer=PositionSizer(account_size=10_000, risk_pct_per_trade=0.01),
+        skip_log=skip_log,
+    )
+    assert trades == []
+    assert len(skip_log) == 1
+    assert skip_log[0]["reason"] == "undersized"
+
+
+def test_compute_metrics_account_pct_drawdown():
+    t0 = pd.Timestamp("2026-01-01")
+    t1 = pd.Timestamp("2026-01-02")
+    trades = [Trade(t0, t1, "long", 100, 95, 110, 95, "loss", 5, -500, -1.0, -500)]
+    metrics = compute_metrics(trades, account_size=10_000)
+    assert metrics["max_drawdown_pct_of_account"] == pytest.approx(0.05)
 
 
 def test_compute_metrics_aggregates_win_loss_open():
