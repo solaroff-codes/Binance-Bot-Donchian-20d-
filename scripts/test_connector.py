@@ -26,20 +26,24 @@ TIMEFRAMES = [
 
 
 def main() -> None:
-    # 7497 = TWS paper port. Use 4002 if you're running IB Gateway instead.
-    connector = IBKRConnector(port=7497)
+    # 4001 = IB Gateway, live/regular account, Read-Only API enabled.
+    # This connector only calls reqHistoricalData/reqContractDetails (no
+    # order placement), and Read-Only API rejects order calls at the IBKR
+    # level regardless, so this is safe to point at the live account.
+    connector = IBKRConnector(port=4001)
 
     try:
         connector.connect()
     except Exception as exc:
-        print(f"Could not connect to TWS/IB Gateway on {connector.host}:{connector.port} ({exc})")
+        print(f"Could not connect to IB Gateway on {connector.host}:{connector.port} ({exc})")
         print()
         print("Checklist:")
-        print("  1. TWS or IB Gateway is running and logged into the PAPER account")
-        print("  2. File > Global Configuration > API > Settings:")
+        print("  1. IB Gateway is running and logged into your live/regular account")
+        print("  2. Configure > Settings > API > Settings:")
         print("       - 'Enable ActiveX and Socket Clients' is checked")
-        print("       - Socket port matches (7497 for TWS paper, 4002 for IB Gateway paper)")
-        print("       - 127.0.0.1 is in 'Trusted IPs' (or disable the read-only prompt)")
+        print("       - 'Read-Only API' is checked")
+        print("       - Socket port is 4001")
+        print("       - 127.0.0.1 is in 'Trusted IPs' (or accept the connection prompt in Gateway)")
         sys.exit(1)
 
     try:
