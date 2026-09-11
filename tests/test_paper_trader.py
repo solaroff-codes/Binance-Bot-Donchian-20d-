@@ -34,6 +34,18 @@ def test_paper_trades_since_excludes_signals_before_start_date():
     assert len(excluded) == 0
 
 
+def test_paper_trades_since_uses_compounding_sizing_by_default():
+    # paper_trades_since now sizes via simulate_trades_compounding (this
+    # project's 3-asset portfolio, chosen after backtest/README.md's
+    # risk-scaling section) rather than a fixed PositionSizer -- confirm
+    # it still produces a sane, sized trade with the module's own defaults.
+    df = _breakout_df()
+    entry_date = df["date"].iloc[20].date()
+    trades = paper_trades_since(df, paper_start_date=entry_date)
+    assert len(trades) == 1
+    assert trades[0].contracts >= 1
+
+
 def test_paper_trades_since_returns_empty_list_with_no_qualifying_signals():
     df = _breakout_df()
     far_future = df["date"].iloc[-1].date() + timedelta(days=365)

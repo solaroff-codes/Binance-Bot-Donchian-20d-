@@ -1,30 +1,47 @@
 # paper/
 
-Live paper-trading executor. Only one strategy has ever cleared the bar
-to be run here: **BTC + Donchian channel breakout**, the sole result in
-this project's history with real train/test, bear-market, and
-second-holdout evidence behind it (`backtest/README.md`'s "Stress-testing
-BTC + Donchian" section). Nothing else — not the trendline cascade, not
-the original Wyckoff/Fib/Elliott confluence strategy, not any futures
-instrument — has been validated enough to belong here.
+Live paper-trading executor. Only one configuration has ever cleared the
+bar to run here: **BTC + SOL + BNB, Donchian channel breakout, 3% risk
+per trade, full compounding** — a three-asset portfolio, each sleeve
+independently given the full bear-market/second-holdout stress test
+(`backtest/README.md`'s "Stress-testing BTC + Donchian" and "Increasing
+profit on the 1:1.5 version" sections), with the risk/compounding level
+chosen after scaling through a conventional 1-5% band and weighing the
+result against buy-and-hold's own return/drawdown profile (`backtest/
+README.md`'s "Is 25-28% over 6 years actually good?" section). Backtested
+~12.3% CAGR, ~15.7% max drawdown. Nothing else — not the trendline
+cascade, not the original Wyckoff/Fib/Elliott confluence strategy, not
+ETH or XRP (both checked, both failed the same stress test BTC/SOL/BNB
+passed), not any futures instrument — has been validated enough to
+belong here.
+
+This supersedes an earlier BTC-only, 1% risk, fixed-sizing version of
+this paper trader. That version's state/output files
+(`btc_donchian_paper_state.json` / `btc_donchian_paper_trades.csv`), if
+present from before, are left untouched but no longer updated — the
+current script writes to `portfolio_paper_state.json` /
+`portfolio_paper_trades.csv` instead.
 
 ## `paper_trader.py` — simulated paper trading (no account, no API key)
 
-Fetches fresh **public** Binance market data (no authentication — the
-same endpoint `data/binance_connector.py` already uses for backtesting),
-regenerates Donchian breakout signals with the exact fixed parameters
-used throughout the validated backtest, and re-simulates a paper account
-using `backtest/engine.py`'s own `simulate_trades()` / `CostModel` /
-`PositionSizer` — the identical, already-tested code, not a
-reimplementation. **No Binance account, no API credentials, no order is
-ever placed anywhere.** This only tells you what the strategy *would*
-have done; it does not test real order-execution mechanics (see "Testnet"
-below for that).
+Fetches fresh **public** Binance market data per symbol (no
+authentication — the same endpoint `data/binance_connector.py` already
+uses for backtesting), regenerates Donchian breakout signals with the
+exact fixed parameters used throughout the validated backtest, and
+re-simulates each sleeve using `backtest/engine.py`'s own
+`simulate_trades_compounding()` / `CostModel` — the identical,
+already-tested code, not a reimplementation. **No Binance account, no API
+credentials, no order is ever placed anywhere.** This only tells you what
+the strategy *would* have done; it does not test real order-execution
+mechanics (see "Testnet" below for that).
 
-Stateless except for one persisted date (`paper_start_date`, set on first
-run and never changed) — every run recomputes the full trade history
-since paper trading began from scratch, so a missed day, a crash, or a
-clock issue can't desync it.
+Stateless except for one persisted date (`paper_start_date`, shared
+across all three sleeves, set on first run and never changed) and a
+per-symbol last-seen-exit marker used only for "what closed since last
+run" reporting. Every run recomputes each sleeve's full trade history
+since paper trading began from scratch — including its own compounding
+equity curve — rather than incrementally patching saved state, so a
+missed day, a crash, or a clock issue can't desync it.
 
 ### Running it
 
@@ -33,25 +50,33 @@ python paper\paper_trader.py
 ```
 
 Run this **once per day, any time after 00:00 UTC** (Binance's daily
-candle close) — earlier and "today"'s bar hasn't closed yet, so there's
-nothing new to evaluate. Running it more than once on the same day is
-harmless (it's a pure recomputation), it just won't have anything new to
-report.
+candle close) — earlier and "today"'s bar hasn't closed yet on at least
+one symbol, so there's nothing new to evaluate. Running it more than once
+on the same day is harmless (it's a pure recomputation), it just won't
+have anything new to report.
 
-First run starts a fresh $10,000 (notional) account, flat, as of the
-latest closed daily bar, and records that date to
-`paper/state/btc_donchian_paper_state.json` (gitignored — machine-local
-state, not project history). Every run after that reports:
+First run starts a fresh $10,000 total portfolio ($3,333.33 per sleeve),
+flat on all three, as of the latest daily bar all three symbols have in
+common, and records that date to
+`paper/state/portfolio_paper_state.json` (gitignored — machine-local
+state, not project history). Every run after that reports, per symbol:
 - any trade(s) closed since the last run (win/loss, P&L, R-multiple)
 - the currently open position, if any
-- running win rate / profit factor / total P&L for the whole paper period
 
-Full trade log (every paper trade, updated each run): `paper/output/btc_donchian_paper_trades.csv` (gitignored).
+— then a combined portfolio summary: each sleeve's current (compounded)
+equity, total portfolio value and return, and combined win rate / profit
+factor across all three sleeves' closed trades.
 
-Risk settings — `paper/paper_trader.py`'s module constants:
-`ACCOUNT_SIZE = 10_000`, `RISK_PCT = 0.01` (the conservative end of the
-1-2% range used throughout this project's backtests; change the constant
-directly to adjust).
+Full trade log (every paper trade across all three sleeves, tagged by
+symbol, updated each run): `paper/output/portfolio_paper_trades.csv`
+(gitignored).
+
+Configuration — `paper/paper_trader.py`'s module constants:
+`SYMBOLS = ["BTC", "SOL", "BNB"]`, `ACCOUNT_SIZE = 10_000`,
+`RISK_PCT = 0.03`, `COMPOUNDING_FRACTION = 1.0` (0.0 = fixed sizing,
+1.0 = full reinvestment, 0.5 = "half-Kelly" — see `backtest/README.md`'s
+risk-scaling section for the alternatives this was chosen over, and their
+own backtested return/drawdown numbers, before changing these).
 
 ### Automating it (Windows Task Scheduler)
 
@@ -73,7 +98,7 @@ directly to adjust).
      than overwrites, so the log accumulates every run; `2>&1` folds
      errors into it too, so a crashed run is visible instead of silent.
    - Start in: the project root (`C:\Users\Privremeno-povremeni\Desktop\Claude Quant`)
-4. Save. Check `paper/output/btc_donchian_paper_trades.csv` for the trade
+4. Save. Check `paper/output/portfolio_paper_trades.csv` for the trade
    log, or `paper/output/paper_trader.log` for the full run history
    (both gitignored — machine-local, not project history).
 

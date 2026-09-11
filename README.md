@@ -38,9 +38,9 @@ confluence rule, and a multi-timeframe trendline bounce/break cascade
   sweeps multiple instrument configs into one comparable summary
   (`runner.py`), and a parameter-grid sweep utility (`sweep.py`)
 - `paper/` — live paper-trading executor. `paper_trader.py` forward-tests
-  BTC + Donchian breakout (the one validated strategy — see Status below)
-  against live public Binance data with no account or API key; see
-  `paper/README.md`.
+  the validated BTC+SOL+BNB Donchian breakout portfolio (3% risk,
+  compounding — see Status below) against live public Binance data with
+  no account or API key; see `paper/README.md`.
 - `scripts/` — runnable entry points: `fetch_all_instruments.py`,
   `fetch_crypto_data.py`, `build_continuous_contracts.py`,
   `run_strategy.py`, `run_backtest.py`, `run_trendline_backtest.py`,
@@ -304,13 +304,16 @@ genuine train/test split were added:
   through this project's honest methodology. See `backtest/README.md`'s
   "The original confluence strategy, finally given the honest treatment"
   section.
-- **Paper trading is live.** `paper/paper_trader.py` forward-tests BTC +
-  Donchian breakout against real public Binance market data — no
-  account, no API key, no order ever placed, pure simulation reusing the
-  same validated `simulate_trades`/`CostModel`/`PositionSizer` code the
-  backtest used. Run once daily after 00:00 UTC; see `paper/README.md`
-  for the exact setup and how to automate it. Nothing else in this
-  project has reached this stage.
+- **Paper trading is live, running the full 3-asset compounding
+  portfolio.** `paper/paper_trader.py` forward-tests BTC+SOL+BNB Donchian
+  breakout (3% risk/trade, full compounding — the balanced configuration
+  chosen above) against real public Binance market data, one sleeve per
+  symbol — no account, no API key, no order ever placed, pure simulation
+  reusing the same validated `simulate_trades_compounding`/`CostModel`
+  code the backtest used. Run once daily after 00:00 UTC; see
+  `paper/README.md` for the exact setup, how to automate it, and how to
+  switch to a different point on the risk/compounding tradeoff. Nothing
+  else in this project has reached this stage.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined
@@ -328,11 +331,7 @@ fixed days-before-expiry rule — documented tradeoff in
 sub-daily crypto data isn't computationally tractable with the current
 walk-forward trendline fit; see `backtest/README.md`'s crypto section), a
 faster `walk_forward_trendlines` refit strategy in general (which would
-unblock that), extending `paper/paper_trader.py` to the full three-asset
-compounding portfolio (BTC+SOL+BNB) now that all three have passed the
-same stress test — the current paper trader still runs BTC alone, a
-single-asset fixed-size simulation, not yet the compounding/diversified
-version this session validated, and a Binance
+unblock that), and a Binance
 Testnet paper-trading path for real order-placement mechanics
 (`paper/README.md`'s "Testnet" section — the current paper trader is pure
 simulation, no orders ever placed). Every strategy this project has built
