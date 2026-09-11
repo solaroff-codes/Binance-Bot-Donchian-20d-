@@ -278,6 +278,7 @@ def simulate_trades_compounding(
     risk_pct_per_trade: float = 0.01,
     cost_model: CostModel | None = None,
     skip_log: list | None = None,
+    compounding_fraction: float = 1.0,
 ) -> list[Trade]:
     """
     Same stop/target walk-forward as simulate_trades(), but position size
@@ -292,6 +293,16 @@ def simulate_trades_compounding(
     mechanism. This is for the different question of "what would this
     account's balance actually have done," where compounding is the
     realistic behavior.
+
+    compounding_fraction (default 1.0 = full compounding) scales how much
+    of the realized P&L feeds back into the sizing base: sizing equity =
+    starting_capital + compounding_fraction * cumulative_pnl_so_far. 0.0
+    reduces to fixed sizing off starting_capital (matching simulate_trades
+    with a constant PositionSizer); a fraction like 0.5 is the standard
+    "fractional Kelly"-style compromise — captures part of the growth
+    benefit of reinvesting winners without fully compounding losing
+    streaks too, which is what makes full (1.0) compounding's drawdown
+    grow faster than proportionally as risk_pct_per_trade increases.
 
     Always single-position (no enforce_single_position=False option) —
     "what would this account's balance have been" only makes sense for a
@@ -309,7 +320,7 @@ def simulate_trades_compounding(
     ordered_signals = sorted(signals, key=lambda s: s.entry_ts)
 
     trades: list[Trade] = []
-    equity = starting_capital
+    cumulative_pnl = 0.0
     blocked_until_date = None
     position_open_indefinitely = False
 
@@ -354,7 +365,8 @@ def simulate_trades_compounding(
             pnl_points = signed * (exit_price - signal.entry_price)
             r_multiple = pnl_points / risk_points if risk_points else None
 
-            sizer = PositionSizer(account_size=equity, risk_pct_per_trade=risk_pct_per_trade)
+            sizing_equity = starting_capital + compounding_fraction * cumulative_pnl
+            sizer = PositionSizer(account_size=sizing_equity, risk_pct_per_trade=risk_pct_per_trade)
             sized = sized_and_costed_pnl(
                 signal.direction, signal.entry_price, exit_price, risk_points,
                 multiplier, cost_model, sizer,
@@ -365,11 +377,11 @@ def simulate_trades_compounding(
                         "entry_ts": signal.entry_ts, "reason": "undersized",
                         "risk_points": risk_points,
                         "risk_dollars_at_1_contract": risk_points * multiplier,
-                        "equity_at_time": equity,
+                        "equity_at_time": sizing_equity,
                     })
                 continue
             pnl_dollars, contracts = sized
-            equity += pnl_dollars
+            cumulative_pnl += pnl_dollars
 
         trades.append(
             Trade(

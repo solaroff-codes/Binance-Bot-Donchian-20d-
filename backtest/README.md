@@ -1304,3 +1304,102 @@ this whole project has used as its reference account throughout, they
 outperform holding BTC alone on both total return and drawdown. Neither
 change alone (diversification without compounding, or compounding a
 single asset) gets there by itself — it's the combination that does.
+
+## Is 25-28% over 6 years actually good? Buy-and-hold context, and scaling risk further
+
+A fair challenge to the section above: +28.1% over 6 years is a ~4.2%
+CAGR — and buying and holding BTC over the same window returned +644.6%
+(39.8% CAGR). That comparison is real, but it isn't apples to apples:
+buy-and-hold is 100% exposure 100% of the time; this strategy is flat
+roughly a third of the time and risks only 1-2% of the account per
+trade, by design. `scripts/run_portfolio_risk_scaling.py` puts numbers on
+both halves of that tradeoff: how much of the gap a conventional (up to
+5%) risk increase actually closes, and what buy-and-hold's own risk
+profile looks like for honest context.
+
+### Buy-and-hold's own numbers, for context — not a strategy, the benchmark
+
+| | Total return | CAGR | Max drawdown |
+|---|---|---|---|
+| BTC | +644.6% | 39.8% | 76.6% |
+| SOL | +2,764.7% | 74.9% | 96.3% |
+| BNB | +2,767.2% | 75.0% | 70.9% |
+| Equal-weight 3-asset | +2,058.8% | 66.9% | 86.7% |
+
+Buy-and-hold's returns are enormous over this particular 6-year window —
+and so are its drawdowns. An 86.7% peak-to-trough decline on the
+equal-weight buy-and-hold portfolio means losing $8,670 of every $10,000
+at the worst point, before it recovered. Very few investors hold through
+an 87% drawdown without capitulating at the bottom, which is exactly the
+risk this strategy exists to avoid — the comparison isn't "this strategy
+failed to beat buy-and-hold," it's "this strategy trades a large amount
+of buy-and-hold's return for a large reduction in its drawdown," and the
+question is whether a conventional risk increase can close some of that
+gap without reopening the drawdown problem.
+
+### Risk-per-trade x diversification (fixed sizing, no compounding yet)
+
+| Risk | 3-asset (split $10k) | BTC alone (full $10k) |
+|---|---|---|
+| 1% | +25.5%, DD 3.3% | +25.9%, DD 5.2% |
+| 2% | +51.1%, DD 6.7% | +51.9%, DD 10.4% |
+| 3% | +76.7%, DD 10.0% | +77.9%, DD 15.7% |
+| 5% | +127.8%, DD 16.7% | +129.9%, DD 26.1% |
+
+Diversification barely changes total return at any risk level (as
+expected — it doesn't touch the edge) but **the drawdown gap widens as
+risk increases**: at 5% risk, the diversified portfolio's drawdown (16.7%)
+is nearly 10 points lower than BTC alone's (26.1%). Diversification
+doesn't just smooth the ride at 1-2% risk — it's what makes a higher risk
+level survivable at all.
+
+### Risk-per-trade x compounding fraction, 3-asset portfolio
+
+`compounding_fraction` is a new parameter on `simulate_trades_compounding`
+(0.0 = fixed sizing, 1.0 = full reinvestment, 0.5 = "half-Kelly" — a
+standard, named risk-management compromise, not an arbitrary number):
+
+| Risk | Fixed (0.0) | Half-Kelly (0.5) | Full compounding (1.0) |
+|---|---|---|---|
+| 1% | +25.5%, DD 3.0% | +26.8%, DD 3.3% | +28.1%, DD 3.6% |
+| 2% | +51.1%, DD 6.0% | +56.2%, DD 7.3% | +61.6%, DD 8.8% |
+| 3% | +76.7%, DD 9.0% | +88.4%, DD 12.0% | +100.9%, DD 15.7% |
+| 5% | +127.8%, DD 15.0% | +161.1%, DD 24.0% | +196.5%, DD 36.2% |
+
+**Full compounding's drawdown grows faster than its return as risk
+increases** — at 5% risk it reaches 36.2%, worse than half of
+buy-and-hold's own 76.6% BTC drawdown, on a strategy whose whole appeal
+was avoiding exactly that. Half-Kelly (0.5) captures most of full
+compounding's return benefit at 3% risk (11.1% CAGR vs. 12.3% — about
+90% of the upside) for meaningfully less drawdown (12.0% vs. 15.7%) —
+the better risk-adjusted choice at that level. At 5% risk, even
+half-Kelly's drawdown (24.0%) is getting large; full compounding's
+(36.2%) is the point where this stops looking like the same
+conservative strategy validated earlier in this file.
+
+### Where this leaves the decision
+
+None of this is free — every row above that beats the original 1%/fixed
+baseline's return also has a bigger drawdown than its 3.0-3.6% starting
+point. Within the conventional band (up to 5%, per the brief this
+section was scoped to — 10-20% risk per trade was explicitly ruled out
+as not a serious proposal for a systematic strategy, backtest numbers
+notwithstanding), the honest shortlist:
+
+| Configuration | CAGR | Max drawdown | Character |
+|---|---|---|---|
+| 1% risk, fixed (original) | 3.9% | 3.0% | Very conservative, already validated |
+| 2% risk, full compounding | 8.3% | 8.8% | Moderate, still tight |
+| **3% risk, full compounding** | **12.3%** | **15.7%** | Balanced — best return-per-unit-drawdown of the growth options |
+| 5% risk, half-Kelly | 17.3% | 24.0% | Aggressive but bounded |
+| 5% risk, full compounding | 19.9% | 36.2% | Most return, but drawdown starts eroding the strategy's own reason for existing |
+
+This isn't a decision the backtest can make on its own — it's a real
+risk-preference tradeoff, same as the 1:1.5-vs-1:2 reward:risk choice
+earlier in this file. 3% risk with full compounding is the balanced
+recommendation (meaningfully higher CAGR than the original 1% baseline,
+15.7% drawdown well inside what most systematic strategies target); 5%
+with half-Kelly is the honest answer if more absolute growth matters more
+than the smoothest ride. All of the above is on the same three-asset,
+fully-stress-tested portfolio — the strategy itself hasn't changed, only
+how much of it is deployed.

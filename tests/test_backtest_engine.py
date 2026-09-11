@@ -358,6 +358,29 @@ def test_simulate_trades_compounding_sizes_next_trade_off_grown_equity():
     assert t2.pnl_dollars == pytest.approx(-205.0)
 
 
+def test_simulate_trades_compounding_fraction_zero_matches_fixed_sizing():
+    dates = pd.date_range("2026-01-01", periods=4, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "high": [100, 108, 111, 113],
+            "low": [95, 97, 99, 104],
+            "close": [100, 103, 110, 109],
+        }
+    )
+    sig1 = _signal(entry_ts=dates[0], entry_price=100, stop_price=95, target_price=110)
+    sig2 = _signal(entry_ts=dates[2], entry_price=110, stop_price=105, target_price=120)
+
+    trades = simulate_trades_compounding(
+        df, [sig1, sig2], multiplier=1, starting_capital=10_000, risk_pct_per_trade=0.02,
+        compounding_fraction=0.0,
+    )
+    # With compounding_fraction=0.0, every trade sizes off starting_capital
+    # only -- both trades should use the same 40-unit size (10,000*2%/$5),
+    # unlike full compounding (fraction=1.0) where trade 2 got 41 units.
+    assert [t.contracts for t in trades] == [40, 40]
+
+
 def test_simulate_trades_compounding_skips_when_equity_cannot_size_even_one_unit():
     dates = pd.date_range("2026-01-01", periods=3, freq="D")
     df = pd.DataFrame(

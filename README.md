@@ -268,6 +268,26 @@ genuine train/test split were added:
   compounding alone gets there, the combination does. Added
   `backtest/engine.py`'s `simulate_trades_compounding()` for this. See
   `backtest/README.md`'s "Increasing profit on the 1:1.5 version" section.
+- **+28.1% over 6 years is only a ~4.2% CAGR — fair pushback, addressed
+  with numbers.** Buy-and-hold BTC returned +644.6% (39.8% CAGR) over the
+  same window, but with a 76.6% max drawdown — SOL and BNB buy-and-hold
+  were worse (96.3% and 70.9%), and the equal-weight 3-asset buy-and-hold
+  drawdown was 86.7%. That's the real tradeoff: this strategy gives up
+  most of buy-and-hold's return in exchange for a fraction of its
+  drawdown. Scaled risk-per-trade up through a conventional band (1-5%,
+  ruled out anything above as not a serious proposal regardless of
+  backtested numbers) on the 3-asset portfolio: diversification's
+  drawdown benefit *grows* with risk (at 5%, diversified DD is 16.7% vs.
+  BTC-alone's 26.1%), and added `compounding_fraction` (0.0-1.0, "half-
+  Kelly" at 0.5) to `simulate_trades_compounding()` since full compounding's
+  drawdown grows faster than its return at higher risk (5% + full
+  compounding: 36.2% drawdown, more than a third of the account).
+  **Balanced recommendation: 3% risk + full compounding — 12.3% CAGR,
+  15.7% drawdown**, roughly 3x the original CAGR while staying well
+  inside conventional systematic-strategy drawdown targets. 5% + half-
+  Kelly (17.3% CAGR, 24.0% drawdown) is the honest, bounded answer if more
+  growth matters more than a smooth ride. See `backtest/README.md`'s "Is
+  25-28% over 6 years actually good?" section.
 - **The original Wyckoff/Fibonacci/Elliott Wave confluence strategy —
   what this project started with — has now been given the same honest
   treatment, and does not clear the bar anywhere.** On daily bars it's too
