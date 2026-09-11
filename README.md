@@ -184,6 +184,18 @@ genuine train/test split were added:
   actually tradeable within standard risk management at these account
   sizes — see `backtest/README.md` for what account size or stop redesign
   would be needed.
+- **Re-tested everything (all 8 technical strategies + the trendline
+  cascade) on all six futures instruments with a $100,000 account and
+  full-size contracts — a 10x larger account than the original baseline —
+  and nothing new survives.** Not one of the 96 technical-strategy test
+  combinations produced a single closed trade in the held-out test period,
+  on any instrument; checked directly that this is a genuine volatility/
+  stop-width effect (confirmed on CL) and not a bug, and not something a
+  bigger account fixes, since risk-as-a-percent-of-account doesn't change
+  with account size. The trendline cascade's only profitable-both-sides
+  result (Brent/BZ) rests on just 132 daily bars of single-contract
+  history — too thin to trust. See `backtest/README.md`'s "Everything,
+  re-tested on a $100,000 account" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

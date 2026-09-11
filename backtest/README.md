@@ -739,3 +739,93 @@ minimum, would need considerably more) — or a redesigned, tighter stop
 than the standard 2x-ATR used here, which is a strategy change, not an
 account-size fix. Neither has been tested; this section reports the
 finding, not a fix for it.
+
+## Everything, re-tested on a $100,000 account with full-size contracts
+
+`scripts/run_100k_full_size_backtest.py` — widens the question from "does
+Donchian work on futures" to "does *anything* work on futures at this
+account size": all 8 technical strategies from `strategy/technical_signals.py`
+(not just Donchian) plus the trendline cascade, across all six futures
+instruments (GC, CL, ES, NQ, SI, BZ), on a **$100,000 account with
+full-size contracts** — no micro contracts this time. Same realistic-cost
+methodology throughout: 1 tick slippage, $2.50/contract commission, 70/30
+train/test split by date, 1-2% risk per trade, no parameter sweep for the
+technical strategies (one fixed reasoned set each, same as the crypto
+showdown), touch/break/target swept on train only for the trendline
+cascade (same as "the honest backtest" section above).
+
+**Why this isn't just repeating the last run under a new name:** for
+GC/CL/ES/NQ, full-size+$100k is mathematically identical to
+micro+$10k (verified directly — see the section above), so those four
+contribute no new information for strategies already tested that way.
+What *is* new: SI and BZ, whose "micro" contracts aren't true tenth-size
+(SI's is half-size, BZ has no smaller contract at all — see
+`config/instruments.yaml`), so $100k/full-size is a genuinely different,
+easier test for them than anything run before. And the other seven
+technical strategies (everything except Donchian) had never been run
+against any futures instrument at all until this script — only crypto.
+SI and BZ also don't have a stitched continuous contract series yet (see
+"Not yet built" in the root README), so their technical-strategy legs use
+the latest single contract's own history instead (251 daily bars for SI,
+just 132 for BZ — a few months, not years; flagged explicitly below).
+
+### Zero tradeable signals, for every technical strategy, on every futures instrument
+
+Across all 8 technical strategies x all 6 instruments x both risk levels
+(96 test-period combinations), **not one produced a single closed trade in
+the held-out test period.** This isn't a sizing edge case on one or two
+symbols — it's universal. Checked directly that this isn't a bug: for CL
+(the cheapest instrument to trade, needing as little as 0.99% of the
+account for its overall cheapest signal), the training period does size
+trades fine at 2% risk, but every individual signal *in the test period*
+turned out to need 2.5%-11.2% of the account — oil's realized volatility
+(and therefore its ATR-based stop width) was simply wider in the test
+window than in training. The account-size fix from the section above
+(micro→full, $10k→$100k) doesn't help here because risk-as-a-percentage-
+of-account doesn't change with account size — it's determined entirely by
+how wide the stop is relative to how much of the account you're willing
+to risk, and that's a property of the instrument's recent volatility, not
+the account.
+
+### Trendline cascade: same wall for GC/NQ/SI, one exception
+
+| Symbol | Cheapest signal needs (% of $100k) | Test result |
+|---|---|---|
+| GC | 2.12% | no combo sizes at 1-2% risk — 0 trades |
+| NQ | 2.49% | no combo sizes at 1-2% risk — 0 trades |
+| SI | 1.60% | no combo sizes at 1-2% risk — 0 trades |
+| ES | 1.82% | sizes at 2% risk only, 0 test trades either way |
+| CL | 0.41% | sizes fine, but **loses money in test** (PF 0.0, 1-2 losing trades) — consistent with the CL finding in "the honest backtest" section above |
+| BZ | 0.45% | the only survivor — see below |
+
+**BZ (Brent crude) is the single combination, out of 106 tested in this
+run, that was profitable on both train and test with a real number of
+test trades** — profit factor 2.1-6.9 in test, 5-7 train trades, 8-15
+test trades, all four risk/exit-type variants profitable both sides.
+**Treat this with real suspicion, not excitement:** BZ has no continuous
+contract series, so this result comes from just 132 daily bars of a
+single contract's own history — under six months of data. A "test period"
+built from 8-15 trades inside a few months of one instrument's history is
+exactly the kind of small sample this project has repeatedly found
+produces impressive-looking but fragile numbers (see "why the sections
+above are misleading" earlier in this file). This is not validated
+evidence of an edge; it's a result that would need a real continuous
+multi-year BZ series — which doesn't exist yet — before it's worth
+trusting at all.
+
+### The honest summary
+
+Testing everything this project has built, on every futures instrument
+covered, with a full order of magnitude more account size than the
+original $10k baseline: **nothing new survives.** The technical
+strategies that showed real signal on crypto (Donchian breakout
+especially) produce no test-period trades at all on any futures
+instrument under standard risk management, regardless of account size —
+this is a volatility/stop-width problem, not an undersized-account
+problem, and a bigger account doesn't fix it. The trendline cascade's one
+apparent survivor (BZ) rests on a sample too thin to trust. Ten times the
+account size did not unlock a new edge anywhere in this project's futures
+coverage; it mainly confirmed that GC/CL/ES/NQ's earlier micro-contract
+results already told the whole story (being mathematically identical),
+and that SI/BZ need real historical depth (a continuous series) before
+any result on them means much.
