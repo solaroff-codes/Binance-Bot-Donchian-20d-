@@ -210,14 +210,29 @@ genuine train/test split were added:
   parameters were fit or swept to get this — same fixed rule as always,
   just evaluated on time windows it had never individually been judged
   against. This is now the strongest evidence this project has produced;
-  it is still short of live paper-trading validation. A follow-up
-  calendar-year check found ETH-Donchian is a clean, consistent negative
-  (full-period PF 0.98) but **SOL-Donchian is closer to BTC's picture than
-  the original single-split test suggested** — full-period PF 1.51 (vs.
-  BTC's 1.56) and every calendar year individually profitable, including
-  2022 — though SOL hasn't had the full bear-market/second-holdout
-  treatment yet, only this calendar-year check. See
+  it is still short of live paper-trading validation. See
   `backtest/README.md`'s "Stress-testing BTC + Donchian" section.
+- **SOL got the same full stress test, and passed it — this project now
+  has two evidenced strategies, not one.** Bear-market window (10 trades):
+  PF 1.47. Second, independent holdout: both halves profitable (PF 2.14
+  and 1.32). Every window tried is profitable, no sign flips — the same
+  pattern BTC showed, with somewhat wider variance between windows
+  (1.1-2.1 vs. BTC's tighter 1.5-1.7).
+- **Fixed a real methodology gap: calendar-year drawdown figures were
+  computed with the equity baseline reset to $0 every Dec 31, which
+  understates any drawdown spanning a year boundary.** Added
+  `backtest/engine.py`'s `compute_drawdown_curve()` — one continuous
+  equity curve across the whole multi-year history, reporting not just
+  the true max drawdown but exactly when it started, bottomed, and
+  recovered. BTC's number didn't change (was already computed on the full
+  trade list): $521, recovered in ~8.5 months. **This is what it revealed
+  about ETH: a ~4-year drawdown, from August 2022 to at least September
+  2026 (end of available data), that never recovered** — invisible in a
+  chopped calendar-year view, where each bad year (PF 0.62-0.67) just
+  looked like an isolated bad year rather than one continuous multi-year
+  decline. SOL's true drawdown (9.2% of account) fully recovered in about
+  a year — a normal profile, unlike ETH's. See `backtest/README.md`'s
+  "SOL's full stress test, and a drawdown methodology fix" section.
 - **The original Wyckoff/Fibonacci/Elliott Wave confluence strategy —
   what this project started with — has now been given the same honest
   treatment, and does not clear the bar anywhere.** On daily bars it's too
@@ -258,11 +273,11 @@ fixed days-before-expiry rule — documented tradeoff in
 sub-daily crypto data isn't computationally tractable with the current
 walk-forward trendline fit; see `backtest/README.md`'s crypto section), a
 faster `walk_forward_trendlines` refit strategy in general (which would
-unblock that), the full bear-market/second-holdout stress test applied to
-SOL-Donchian (only the calendar-year check has been run there so far),
-and a Binance Testnet paper-trading path for real order-placement
-mechanics (`paper/README.md`'s "Testnet" section — the current paper
-trader is pure simulation, no orders ever placed). Every strategy this
-project has built has now been through the honest realistic-cost/sizing/
+unblock that), extending `paper/paper_trader.py` to run SOL + Donchian
+alongside BTC now that SOL has passed the same stress test, and a Binance
+Testnet paper-trading path for real order-placement mechanics
+(`paper/README.md`'s "Testnet" section — the current paper trader is pure
+simulation, no orders ever placed). Every strategy this project has built
+has now been through the honest realistic-cost/sizing/
 train-test treatment; BTC + Donchian breakout is the only one that
 passed, and is the only one live in `paper/`.

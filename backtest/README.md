@@ -781,6 +781,68 @@ test BTC got (dedicated bear-market window, independent second holdout)
 before being written off as "didn't replicate," which is not what this
 project's own numbers show.
 
+### SOL's full stress test, and a drawdown methodology fix that changes the ETH picture
+
+`scripts/run_crypto_donchian_full_analysis.py` does two things.
+
+**First, SOL gets the exact stress test BTC got.** 2022 bear-market window
+alone: 10 trades, profit factor **1.47**. Second, independent holdout
+(pre-original-split data cut in half): earlier half PF 2.14 (37 trades),
+later half PF 1.32 (42 trades) — both sides positive. Reference, the
+original 70/30 test window itself: PF 1.12 (23 trades). Every window
+tried is profitable, no sign flips anywhere — the same pattern BTC showed,
+just with somewhat more variance between windows (2.14 down to 1.12) than
+BTC's tighter 1.5-1.7 band.
+
+**Second — and this is the more important fix — a real methodological gap
+in every calendar-year table in this file up to this point.** Computing
+win rate/profit factor/drawdown separately per calendar year resets the
+running-equity baseline to $0 at every Dec 31 -> Jan 1 boundary. Win rate
+and profit factor are just sums/counts, unaffected by where the chopping
+happens — but drawdown is measured as a peak-to-trough decline, and a real
+account carries equity continuously across a year boundary rather than
+resetting it. A decline that straddles one gets recorded as two smaller,
+understated drawdowns in a chopped view instead of the one real one a
+continuously-held position experiences. `backtest/engine.py` now has
+`compute_drawdown_curve()`, which walks the ENTIRE trade history as a
+single equity curve and reports not just how deep the worst drawdown was,
+but exactly when it started, when it bottomed, and whether/when it
+recovered:
+
+| Symbol | Max drawdown (1% risk) | Peak | Trough | Recovered |
+|---|---|---|---|---|
+| BTC | $521 (5.2% of account) | 2024-03-05 | 2024-09-13 | 2024-11-21 (~8.5 months later) |
+| SOL | $918 (9.2% of account) | 2022-11-09 | 2023-06-05 | 2023-11-10 (~1 year later) |
+| ETH | $1,554 (15.5% of account) | 2022-08-11 | 2026-05-18 | **never — still underwater at the end of all available data** |
+
+BTC's true drawdown matches what full-period reporting already showed
+elsewhere in this file — that number was never actually distorted by
+chopping, since it was always computed on the full trade list. SOL's
+drawdown is real (9.2%) but fully recovered within about a year, which is
+a normal, tradeable drawdown profile.
+
+**ETH is the one this fix actually changes the picture on, and makes the
+case against it stronger, not weaker.** Its equity curve peaked in August
+2022, and by the time this project's cached data ends (September 2026) it
+still hasn't gotten back there — a **~4-year underwater period**, worse at
+2% risk (31% of account, still unrecovered). None of the calendar-year
+tables run so far could have shown this, because each year was judged in
+isolation against its own $0 baseline — a strategy can look like it has
+merely a "bad year" here and there (PF 0.62-0.67 in 2022 and 2024) while
+actually never making a new equity high across four consecutive years.
+This is a materially worse picture of ETH-Donchian than "breakeven,
+inconsistent" — it's "breakeven, and if you'd started at the wrong moment
+in mid-2022 you would still be underwater four years later," which is a
+real difference for anyone actually deciding whether to trade it.
+
+Year-end checkpoints on the same continuous curves (full detail via the
+script) make the contrast visible directly: BTC's worst-drawdown-so-far
+figure stabilizes at $521 by end of 2024 and never gets worse again; SOL's
+stabilizes at $918 by end of 2023; ETH's keeps climbing every single year
+through 2026 ($204 -> $711 -> $905 -> $1,258 -> $1,443 -> $1,554) — an
+equity curve that has not yet found its bottom within the available data,
+not one that troughed and moved on.
+
 ### What this does and doesn't establish
 
 This is a meaningfully stronger result than before: seven consecutive
@@ -790,20 +852,35 @@ years of BTC daily data, using parameters that were never fit to this (or
 any) data. That combination of evidence is hard to explain as a pure
 train/test-split artifact.
 
-What it still doesn't establish: this is largely one instrument — ETH is
-a clean negative and stays one, but SOL's calendar-year picture (above)
-turned out closer to BTC's than the original single-split framing
-suggested, and SOL hasn't had the full bear-market/second-holdout
-treatment yet, only the calendar-year check. One exchange's spot data,
-and real trading adds execution risk (slippage beyond the flat 1-tick
+What it still doesn't establish: ETH is a clean negative and, per the
+continuous-drawdown fix above, a considerably worse one than it first
+looked (a ~4-year unrecovered drawdown, not just a mediocre PF) — that
+part only gets stronger with more scrutiny. **SOL, after its own full
+stress test, is now genuinely the second-best-evidenced result in this
+project** — every independent window tried (bear market, both halves of a
+second holdout, the original test) came back profitable, and its true
+continuous drawdown (9.2% of account) fully recovered within about a
+year, a normal profile rather than ETH's unbounded one. It is still not
+quite BTC's equal: BTC's window-to-window range is tighter (roughly
+1.5-1.7 PF everywhere vs. SOL's 1.1-2.1), BTC's sample is somewhat larger
+(94 vs. 100 trades is close, but BTC's original test alone had 24 trades
+vs. SOL's 23 — comparable, not a clear edge either way), and BTC's
+drawdown recovered faster (~8.5 months vs. ~1 year). Two instruments with
+real, differently-shaped supporting evidence is a stronger place for this
+project to be than one, but it's also a reminder that a within-project
+"BTC and SOL, not ETH" split needs to be held loosely — it could reflect
+something structural about these three assets, or it could just be three
+data points, not enough to generalize "Donchian works on large-cap coins
+but not ETH specifically" from. One exchange's spot data throughout, and
+real trading adds execution risk (slippage beyond the flat 1-tick
 assumption here, API/exchange outages, funding/borrow costs if ever run
 short via margin/futures rather than spot) that a backtest can't fully
 capture. "Survived every out-of-sample window tried, including the bear
-market" is the strongest claim this project can honestly make about any
-strategy so far, and it's specifically a claim about BTC — it is still
-not the same claim as "ready to risk real money on," which would need
-live paper-trading validation first (see `paper/`, intentionally
-untouched until something reaches this point).
+market" is the strongest claim this project can honestly make, and now
+applies to two instruments, not one — it is still not the same claim as
+"ready to risk real money on," which would need live paper-trading
+validation first (see `paper/`, currently running for BTC only —
+extending it to SOL is a reasonable next step, not yet done).
 
 ## Donchian breakout on futures: GC, CL, ES, NQ
 

@@ -267,6 +267,64 @@ def simulate_trades(
     return trades
 
 
+def compute_drawdown_curve(trades: list[Trade]) -> dict:
+    """
+    The full drawdown profile from ONE continuous equity curve — trades
+    sorted by exit_ts, cumulative dollar P&L from a $0 baseline, no
+    chopping into calendar years or any other sub-period first.
+
+    Why this exists alongside compute_metrics()'s own max_drawdown_dollars:
+    that number is correct for whatever trade list it's given, but a
+    calendar-year (or any other) breakdown that calls compute_metrics()
+    separately on each year's trades resets the running-peak baseline to
+    $0 at every boundary. A real account never does that — it carries
+    equity across Dec 31 into Jan 1 — so a decline that straddles a
+    boundary (e.g. starts in November, bottoms in February) gets recorded
+    as two smaller, understated drawdowns instead of the one real one a
+    continuously-held position would experience. This walks the ENTIRE
+    trade history as a single curve and also reports *when* the worst
+    drawdown happened and whether/when it recovered, not just how deep.
+
+    Returns a dict with max_drawdown_dollars, peak_ts (when the
+    pre-drawdown equity high was first reached), trough_ts (the lowest
+    point), and recovered_ts (first later point equity exceeded peak_ts's
+    value again, or None if it never did within this trade history) — all
+    None if there are no closed trades.
+    """
+    closed = sorted([t for t in trades if t.outcome != "open"], key=lambda t: t.exit_ts)
+    if not closed:
+        return {"max_drawdown_dollars": None, "peak_ts": None, "trough_ts": None, "recovered_ts": None}
+
+    cum = np.concatenate([[0.0], np.cumsum([t.pnl_dollars for t in closed])])
+    running_peak = np.maximum.accumulate(cum)
+    drawdowns = running_peak - cum
+    trough_idx = int(np.argmax(drawdowns))
+    max_dd = float(drawdowns[trough_idx])
+    # argmax returns the FIRST index attaining the max — i.e. the earliest
+    # point equity reached this drawdown's starting peak, which is the
+    # right "when did the decline begin" answer.
+    peak_idx = int(np.argmax(cum[: trough_idx + 1]))
+
+    recovered_idx = None
+    if trough_idx + 1 < len(cum):
+        above_peak = np.flatnonzero(cum[trough_idx + 1 :] > cum[peak_idx])
+        if above_peak.size:
+            recovered_idx = trough_idx + 1 + int(above_peak[0])
+
+    def _ts_at(idx: int):
+        # idx 0 is the $0 baseline before any trade closed — label it with
+        # the first trade's own entry_ts rather than None, so callers
+        # always get a usable timestamp.
+        return closed[0].entry_ts if idx == 0 else closed[idx - 1].exit_ts
+
+    return {
+        "max_drawdown_dollars": max_dd,
+        "peak_ts": _ts_at(peak_idx),
+        "trough_ts": _ts_at(trough_idx),
+        "recovered_ts": _ts_at(recovered_idx) if recovered_idx is not None else None,
+    }
+
+
 def compute_metrics(trades: list[Trade], account_size: float | None = None) -> dict:
     closed = [t for t in trades if t.outcome != "open"]
     wins = [t for t in closed if t.outcome == "win"]

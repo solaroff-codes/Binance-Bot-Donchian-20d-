@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from backtest.engine import CostModel, PositionSizer, Trade, compute_metrics, simulate_trades
+from backtest.engine import CostModel, PositionSizer, Trade, compute_drawdown_curve, compute_metrics, simulate_trades
 from strategy.signals import Signal
 
 
@@ -276,3 +276,43 @@ def test_compute_metrics_handles_no_trades():
     assert metrics["win_rate"] is None
     assert metrics["profit_factor"] is None
     assert metrics["max_drawdown_dollars"] is None
+
+
+def test_compute_drawdown_curve_reports_peak_trough_and_recovery():
+    t0 = pd.Timestamp("2026-01-01")
+    t1 = pd.Timestamp("2026-01-02")
+    t2 = pd.Timestamp("2026-01-03")
+    # Loss then a bigger win: equity dips from its $0 starting peak down to
+    # -500 (the trough), then a new high of +500 recovers it.
+    trades = [
+        Trade(t0, t1, "long", 100, 95, 110, 95, "loss", 5, -5, -1.0, -500),
+        Trade(t0, t2, "long", 100, 95, 110, 110, "win", 5, 10, 2.0, 1000),
+    ]
+    curve = compute_drawdown_curve(trades)
+    assert curve["max_drawdown_dollars"] == 500
+    assert curve["peak_ts"] == t0  # the $0 baseline, before any trade closed
+    assert curve["trough_ts"] == t1
+    assert curve["recovered_ts"] == t2
+
+
+def test_compute_drawdown_curve_reports_no_recovery_if_still_underwater():
+    t0 = pd.Timestamp("2026-01-01")
+    t1 = pd.Timestamp("2026-01-02")
+    t2 = pd.Timestamp("2026-01-03")
+    # Win then a bigger loss: ends below its own peak, with no later trade
+    # to recover it within this history.
+    trades = [
+        Trade(t0, t1, "long", 100, 110, 120, 110, "win", 10, 10, 1.0, 1000),
+        Trade(t0, t2, "long", 100, 85, 120, 85, "loss", 15, -15, -1.0, -1500),
+    ]
+    curve = compute_drawdown_curve(trades)
+    assert curve["max_drawdown_dollars"] == 1500
+    assert curve["peak_ts"] == t1
+    assert curve["trough_ts"] == t2
+    assert curve["recovered_ts"] is None
+
+
+def test_compute_drawdown_curve_handles_no_trades():
+    curve = compute_drawdown_curve([])
+    assert curve["max_drawdown_dollars"] is None
+    assert curve["peak_ts"] is None
