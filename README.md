@@ -233,6 +233,23 @@ genuine train/test split were added:
   decline. SOL's true drawdown (9.2% of account) fully recovered in about
   a year — a normal profile, unlike ETH's. See `backtest/README.md`'s
   "SOL's full stress test, and a drawdown methodology fix" section.
+- **Tested three enhancements to BTC(+SOL) Donchian — one helps, one
+  clearly doesn't, and one is a real tradeoff, not a free win.**
+  (1) **A two-asset BTC+SOL portfolio genuinely helps**: combined max
+  drawdown (7.32%) lands well below the worse individual symbol (SOL's
+  9.18% alone), since their worst drawdown windows don't overlap in time
+  — real diversification, no parameters touched. (2) **An ATR trailing
+  stop (`backtest/atr_trailing.py`, new) is worse on both symbols**,
+  flipping BTC into a losing strategy (PF 0.95) — the same conclusion
+  already reached testing a trailing stop against the trendline cascade,
+  now confirmed a second time on a different strategy; not adopted.
+  (3) **The strategy's default reward:risk is 1:1.5, below a stated 1:2
+  floor** — tested a stricter 1:2 variant (wider target) directly: both
+  symbols stay profitable, but PF drops ~20-25% and max drawdown roughly
+  doubles on both. A real, working option, just a weaker one — which
+  version (if either) to paper-trade is a risk-preference call the
+  numbers alone can't settle. See `backtest/README.md`'s "Enhancing BTC
+  (+ SOL) Donchian" section.
 - **The original Wyckoff/Fibonacci/Elliott Wave confluence strategy —
   what this project started with — has now been given the same honest
   treatment, and does not clear the bar anywhere.** On daily bars it's too

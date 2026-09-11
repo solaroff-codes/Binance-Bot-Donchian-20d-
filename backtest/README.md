@@ -1126,3 +1126,85 @@ the R-multiples look inflated even before considering sample size. This
 closes the last major "not yet built" gap in this project's honest-
 methodology coverage — every strategy that predates BTC + Donchian has
 now been tested the same way, and none of them beat it.
+
+## Enhancing BTC (+ SOL) Donchian: portfolio, trailing stop, a stricter reward:risk floor
+
+`scripts/run_btc_sol_enhancements.py` — three deliberate, named
+comparisons (not a parameter search) against the validated BTC/SOL +
+Donchian breakout result, all at $10k account / 1% and 2% risk.
+
+### 1. A two-asset BTC+SOL portfolio — the one that actually helps
+
+Combining both symbols' trades into one shared-account equity curve, no
+parameters changed on either side:
+
+| | Trades | Win rate | PF | Total P&L (1% risk) | Max drawdown |
+|---|---|---|---|---|---|
+| BTC alone | 94 | 52.1% | 1.56 | +$2,595 | 5.21% |
+| SOL alone | 100 | 51.0% | 1.51 | +$2,559 | 9.18% |
+| **BTC+SOL combined** | 194 | 51.5% | 1.54 | +$5,154 | **7.32%** |
+
+Total P&L is exactly additive (as it has to be), and profit factor barely
+moves — no surprise, since nothing about either strategy changed. The
+real result is **drawdown: 7.32% combined vs. 5.21%/9.18% individually**.
+If the two assets' bad periods were the same period, combined drawdown
+would sit at or above the worse of the two (9.18%+); if they were
+perfectly offsetting, it would fall well below the better one. Landing
+between the two, closer to the average than either extreme, confirms what
+the peak/trough dates already suggested (BTC's worst stretch was
+2024-03 to 2024-09; SOL's was 2022-11 to 2023-06 — different windows):
+real, if partial, diversification. This is the one enhancement here that
+improves the risk picture without touching either strategy's own edge or
+introducing any new parameter to second-guess.
+
+### 2. ATR trailing stop vs. fixed target — worse on both, consistent with the earlier trendline-cascade finding
+
+`backtest/atr_trailing.py` (new this session): a generic ATR "chandelier
+exit" — trails at the same 2x-ATR distance the strategy's own initial
+stop already uses, not a separately chosen number — tested head-to-head
+against the fixed 3x-ATR target:
+
+| Symbol | Exit | PF | Win rate | Max DD (1% risk) | Avg win |
+|---|---|---|---|---|---|
+| BTC | fixed target | 1.56 | 52.1% | 5.21% | 1.50R |
+| BTC | trailing stop | **0.95 (losing)** | 46.5% | 10.96% | 0.87R |
+| SOL | fixed target | 1.51 | 51.0% | 9.18% | 1.50R |
+| SOL | trailing stop | 1.38 | 40.0% | 6.62% | 1.42R |
+
+**Worse on both symbols, badly enough on BTC to flip it into a losing
+strategy.** Same conclusion this project already reached testing a
+trailing stop against the trendline cascade ("did not outperform a fixed
+R-multiple target in any head-to-head comparison run") — now confirmed a
+second time, on a completely different strategy. The mechanism: Donchian
+breakout's edge depends on capturing a specific, sized move (the 3x-ATR
+target), and a trail that lets winners "run" instead just gives back gains
+on the pullback before the wider trailing stop catches it — average win
+size actually shrinks (0.87-1.42R vs. the fixed target's 1.50R), the
+opposite of what a trend-following trailing exit is supposed to achieve.
+**Not adopted — reported because it was tested, not because it worked.**
+
+### 3. The reward:risk floor: original is 1:1.5, a stated minimum is 1:2
+
+The strategy's validated default (stop=2x ATR, target=3x ATR) is a 1:1.5
+reward:risk ratio. Tested a stricter 1:2 variant (target=4x ATR) as a
+single, one-time comparison — not a search for a better number, a direct
+answer to whether the edge survives a stricter floor:
+
+| Symbol | Variant | PF | Win rate | Max DD (1% risk) |
+|---|---|---|---|---|
+| BTC | original (1:1.5) | 1.56 | 52.1% | 5.21% |
+| BTC | strict 1:2 | 1.23 | 39.0% | 9.91% |
+| SOL | original (1:1.5) | 1.51 | 51.0% | 9.18% |
+| SOL | strict 1:2 | 1.29 | 39.8% | 12.53% |
+
+**Both symbols stay profitable at the stricter 1:2 floor — this is a real
+option, not a broken one — but it's a meaningfully weaker version of the
+same edge**, not an improvement: profit factor drops ~20-25%, win rate
+drops from ~51% to ~39% (a wider target takes longer to reach, so more
+trades reverse before getting there), and max drawdown roughly doubles on
+both symbols. This is a genuine risk-preference tradeoff, not something
+this project can resolve on its own: the validated 1:1.5 version performs
+better on every metric measured here, but a 1:2-or-better rule is a
+defensible, common risk-management floor many traders hold to regardless
+of backtested performance. Both are reported; which one (if either) to
+paper-trade is a call the strategy's own numbers can't make.
