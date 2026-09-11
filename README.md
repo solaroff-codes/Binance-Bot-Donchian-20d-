@@ -23,12 +23,15 @@ confluence rule, and a multi-timeframe trendline bounce/break cascade
 - `indicators/` — reusable indicator functions: swing high/low detection
   (`swings.py`), Fibonacci retracement/extension levels (`fibonacci.py`),
   Wyckoff trading range detection (`wyckoff.py`), trendline fitting +
-  bounce/break events (`trendlines.py`)
-- `strategy/` — config-driven entry/exit signal logic, two independent
-  strategies: the Wyckoff/Fib/Elliott Wave confluence rule (`signals.py`,
-  configs in `config/strategies/*.yaml`) and the multi-timeframe trendline
-  cascade (`trendline_signals.py`, configs in
-  `config/trendline_strategies/*.yaml`) — see `strategy/README.md`
+  bounce/break events (`trendlines.py`), and standard technical indicators
+  — SMA/EMA, RSI, MACD, Bollinger Bands, ATR, Donchian channels,
+  Supertrend (`technical.py`)
+- `strategy/` — config-driven entry/exit signal logic: the Wyckoff/Fib/
+  Elliott Wave confluence rule (`signals.py`, configs in
+  `config/strategies/*.yaml`), the multi-timeframe trendline cascade
+  (`trendline_signals.py`, configs in `config/trendline_strategies/*.yaml`),
+  and 8 popular technical strategies built on `indicators/technical.py`
+  (`technical_signals.py`) — see `strategy/README.md`
 - `backtest/` — trade simulation + performance metrics (`engine.py`,
   shared by both strategies, with realistic `CostModel`/`PositionSizer`
   support), a trailing-stop exit variant (`trailing.py`), a runner that
@@ -39,6 +42,7 @@ confluence rule, and a multi-timeframe trendline bounce/break cascade
   `fetch_crypto_data.py`, `build_continuous_contracts.py`,
   `run_strategy.py`, `run_backtest.py`, `run_trendline_backtest.py`,
   `run_realistic_backtest.py`, `run_crypto_realistic_backtest.py`,
+  `run_strategy_showdown.py` (8 technical strategies x BTC/ETH/SOL),
   `sweep_params.py`, `sweep_entry_exit.py`, `sweep_trendline_params.py`,
   `run_combined_confluence.py`, plus smoke-test/sanity scripts
 - `tests/` — automated tests (pytest) — one file per module
@@ -140,15 +144,32 @@ genuine train/test split were added:
   head-to-head comparison run — it exited winners earlier without
   meaningfully reducing drawdown, and in one case was net losing where the
   fixed-target version was profitable.
-- **BTC/ETH/SOL (6 years of Binance data) found zero signals of any kind
-  since May 2022**, at every parameter combination tested. Every signal
-  any of the three ever produced falls in a 20-month window from early
-  2021 to mid-2022 — the COVID-era crypto boom and its crash — despite
-  BTC alone rallying from ~$16-20k to $77k+ since. There is no
-  out-of-sample data for crypto at all: the entire signal history
-  predates the train/test split point by two and a half years. Not a
-  bug — verified directly across all three symbols and every tested
-  parameter combination.
+- **The trendline cascade found zero signals in BTC/ETH/SOL since May
+  2022**, at every parameter combination tested (6 years of Binance data).
+  Every signal any of the three ever produced falls in a 20-month window
+  from early 2021 to mid-2022 — the COVID-era crypto boom and its crash —
+  despite BTC alone rallying from ~$16-20k to $77k+ since. No
+  out-of-sample data for crypto exists for this strategy at all. Not a
+  bug — verified directly across all three symbols and every parameter
+  combination.
+- **This project's best evidence of a real edge, found anywhere:** 8
+  popular technical strategies (EMA cross, RSI, MACD, Bollinger, Donchian
+  breakout, Supertrend, and two confluence combos —
+  `strategy/technical_signals.py`) tested against the same 6 years of
+  crypto data, one fixed reasoned parameter set per strategy (no sweep —
+  see `backtest/README.md`'s "strategy showdown" section for why). **BTC +
+  Donchian channel breakout** is the one combination that held up on
+  genuinely held-out data: 70 training trades (51% win rate, profit
+  factor 1.53) and 24 test trades (54% win rate, profit factor 1.68) — win
+  rate, profit factor, *and* drawdown all stable or improved out of
+  sample, a believable ~15 trades/year frequency, and a plausible-sized
+  edge (1.5-1.7 PF) rather than a sweep's inflated best cell. Every other
+  combination tried showed contradictory train/test results — the
+  expected, honest outcome for most of 24 independent tries, which is
+  exactly what makes this one consistent result stand out. Still only one
+  result out of 24, not tested against a second holdout period or a real
+  bear market — "best evidence so far" is not the same claim as
+  "validated."
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

@@ -576,3 +576,93 @@ been relevant to BTC/ETH/SOL since mid-2022, through a bear market bottom,
 a multi-year recovery, and a fresh all-time high — none of which produced
 a single bounce or break event this rule recognizes, at any parameter
 setting tried.
+
+## Strategy showdown: 8 popular technical strategies x BTC/ETH/SOL
+
+`scripts/run_strategy_showdown.py` — since the trendline cascade found
+nothing in crypto since 2022, tried a genuinely different approach: 8
+well-known technical strategies (`strategy/technical_signals.py`,
+`indicators/technical.py`) — EMA crossover, RSI mean-reversion, MACD
+crossover, Bollinger Band reversion, Donchian channel breakout,
+Supertrend, and two confluence combos (trend-filtered RSI pullback,
+MACD+RSI) — against 6 years of daily BTC/ETH/SOL data. Same realistic
+costs and $10k/1-2% position sizing as everywhere else in this file.
+
+**Deliberately did not sweep parameters this time.** Each strategy uses
+one fixed, reasoned parameter set (standard textbook defaults — ATR-based
+stops/targets at roughly 1.5:1-1.7:1 reward:risk, RSI shortened to 10
+periods for crypto's volatility per current trading commentary — see the
+module docstring) rather than searching a grid and reporting the best
+cell. Given what every other sweep in this file already demonstrated
+about the multiple-comparisons trap, testing 8 strategies x a parameter
+grid each would have reproduced the same problem at a larger scale. One
+principled choice per strategy, then real train/test validation, is the
+honest way to search across *strategies* instead of *parameters*.
+
+### The headline result: BTC + Donchian channel breakout
+
+Of 24 (symbol, strategy) combinations tested, exactly one showed a
+profit factor consistently above 1.0 on *both* a large training sample
+and genuinely held-out test data, with the test period actually
+outperforming training rather than decaying:
+
+| Split | Trades | Win rate | Profit factor | Total P&L (2% risk) | Max DD (% acct) |
+|---|---|---|---|---|---|
+| Train (2020-2024) | 70 | 51.4% | 1.53 | +$3,648 | 10.4% |
+| Test (2024-2026) | 24 | 54.2% | 1.68 | +$1,546 | 6.2% |
+
+Win rate, profit factor, *and* drawdown all held up or improved out of
+sample — about as good as out-of-sample validation gets for a simple,
+unoptimized rule. 94 total trades over ~6 years (~15-16/year) is a
+believable frequency for a 20-day Donchian breakout on daily bars, not a
+suspiciously dense signal count. The profit factor (1.5-1.7) is also
+*plausible* in a way the project's earlier PF 10-45 sweep results were
+not — a real, modest edge looks like this, not like a sweep's best cell.
+
+SOL's Donchian breakout is a weaker secondary case: strong in training
+(77 trades, PF 1.66) but decaying on test (23 trades, PF 1.12) — still
+positive, but a real falloff rather than BTC's stability. ETH's Donchian
+result doesn't clear the bar at all (train PF 0.95, essentially breakeven).
+
+### Everything else: mostly noise, and that's the honest, expected result
+
+Every other combination that showed a "profitable" train *or* test split
+individually failed to show both — the standard signature of noise rather
+than edge:
+
+- **SOL RSI mean-reversion**: train PF 0.78 (losing) -> test PF 1.78 (very
+  good). A real edge doesn't flip this hard; more likely one favorable
+  stretch in the test window.
+- **ETH Bollinger reversion**: train PF 1.16 (profitable) -> test PF 0.62
+  (losing) — the reverse pattern, equally not to be trusted.
+- **BTC EMA crossover**: train PF 0.96 (losing, 20 trades) -> test PF 1.97
+  (great, but only 12 trades) — too small a sample either direction to
+  mean anything, textbook overfitting-shaped noise if taken at face value.
+- **Supertrend** was the most consistently *weak* strategy across all
+  three symbols and both splits (profit factor 0.50-1.08 everywhere,
+  never convincingly above 1.0) — the one strategy tested that looks
+  closer to "doesn't work here" than "inconclusive."
+- MACD crossover, the two confluence combos, and trend-pullback were all
+  similarly mixed-to-negative across symbols — no consistent winner among
+  them.
+
+Full results for all 24 combinations (both risk levels) in
+`output/strategy_showdown.csv`.
+
+### Honest caveats
+
+One standout out of 24 tried is not overwhelming evidence on its own —
+with that many independent tries, finding one combination that happens to
+look consistent is not wildly improbable even without a real underlying
+edge, though BTC-Donchian's stability (matching win rate, matching
+drawdown behavior, not just matching profit factor) is meaningfully
+stronger evidence than a single number holding up would be. This has not
+been tested against a second, later holdout period, against transaction
+cost assumptions other than the ones used throughout this file, or with
+the position-sizing/stop-placement logic stress-tested further (e.g. does
+it survive a genuine bear market the current 6-year window under-samples,
+since BTC/ETH/SOL have mostly trended up over this span). Worth taking
+seriously as this project's best evidence of a real, if modest, edge
+found anywhere across futures, crypto, both strategies, and every sweep
+run — but "best evidence found so far" and "validated" are not the same
+claim.

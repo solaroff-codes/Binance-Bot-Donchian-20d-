@@ -3,7 +3,7 @@
 Combines `indicators/` outputs into entry/exit signals. Config-driven —
 instrument, timeframe, and parameter set live in YAML, so the same
 signal-generation code runs unchanged across GC/CL/ES/NQ and different
-parameter sets. Two independent strategies live here — see each section
+parameter sets. Three independent strategies live here — see each section
 below.
 
 ## Confluence strategy (Wyckoff + Fibonacci + Elliott Wave)
@@ -84,3 +84,44 @@ Tests: `tests/test_trendline_signals.py` — bias point-in-time lookup, and
 an end-to-end synthetic scenario verifying signals only fire in the
 direction the bias agrees with, with the target R-multiple formula
 verified algebraically rather than against brittle hardcoded floats.
+
+## Technical strategies (EMA, RSI, MACD, Bollinger, Donchian, Supertrend, confluences)
+
+- [`technical_signals.py`](technical_signals.py) — 8 popular technical
+  strategies built on [`indicators/technical.py`](../indicators/technical.py),
+  each producing `TechnicalSignal` objects (same drop-in field names as
+  the other two strategies' signal types): `generate_ema_cross_signals`,
+  `generate_rsi_reversion_signals`, `generate_macd_cross_signals`,
+  `generate_bollinger_reversion_signals`, `generate_donchian_breakout_signals`,
+  `generate_supertrend_signals`, and two confluence combos —
+  `generate_trend_pullback_signals` (trend-filtered RSI pullback, the
+  common "buy the dip in an uptrend" rule) and
+  `generate_macd_rsi_confluence_signals` (MACD crossover filtered by RSI
+  not already at an extreme). `STRATEGY_REGISTRY` maps names to functions
+  for scripts that loop over all of them.
+
+  All eight use ATR-based stop/target sizing (not a fixed percent or
+  instrument-specific stop) — the standard, volatility-adjusted way to
+  size risk in technical trading, which is why the same code applies
+  sensibly across BTC/ETH/SOL's very different price scales without
+  per-instrument tuning. RSI uses a 10-period window rather than the
+  traditional 14 — commonly shortened for crypto's higher volatility.
+
+  Unlike `indicators/trendlines.py`'s walk-forward trendline fitting,
+  every indicator here is vectorized (single pandas pass, or a single
+  O(n) loop for Supertrend's path-dependent bands) — fast even on tens of
+  thousands of bars, which is what made testing these practical after the
+  trendline cascade turned out to be computationally infeasible on
+  crypto's hourly data.
+
+`scripts/run_strategy_showdown.py` runs all 8 against BTC/ETH/SOL with a
+genuine train/test split and realistic costs/sizing — see
+`backtest/README.md`'s "strategy showdown" section for the full results.
+Deliberately does not sweep parameters per strategy (one fixed, reasoned
+parameter set each) — see that section for why.
+
+Tests: `tests/test_technical_indicators.py` (each of the 7 indicator
+functions, hand-verified where practical), `tests/test_technical_signals.py`
+(4 of the 8 signal generators, covering the distinct mechanisms —
+crossover, mean-reversion, breakout, confluence-gating — the rest share
+the same tested wiring pattern).
