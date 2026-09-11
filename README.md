@@ -170,6 +170,20 @@ genuine train/test split were added:
   result out of 24, not tested against a second holdout period or a real
   bear market — "best evidence so far" is not the same claim as
   "validated."
+- **Taking Donchian breakout to futures (GC/CL/ES/NQ) surfaced the same
+  risk-sizing wall the trendline cascade hit, now confirmed with a
+  completely different strategy.** At 1-2% risk, GC/ES/NQ produce *zero*
+  tradeable signals — every signal needs 4.9-8.7% of even a $100k-
+  equivalent account (micro+$10k and full+$100k are mathematically
+  identical here, verified directly) for just 1 contract. Removing that
+  constraint to check the strategy itself: NQ echoes BTC-Donchian's shape
+  (train PF 1.85, test PF 1.28, both profitable, no sign flip) on a much
+  smaller sample (23 trades vs. 94); GC looks good in training but decays
+  to breakeven in test; CL and ES show the noise-shaped sign-flipping
+  pattern most of the crypto showdown's non-survivors did. None of this is
+  actually tradeable within standard risk management at these account
+  sizes — see `backtest/README.md` for what account size or stop redesign
+  would be needed.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

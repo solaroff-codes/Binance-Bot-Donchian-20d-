@@ -666,3 +666,76 @@ seriously as this project's best evidence of a real, if modest, edge
 found anywhere across futures, crypto, both strategies, and every sweep
 run — but "best evidence found so far" and "validated" are not the same
 claim.
+
+## Donchian breakout on futures: GC, CL, ES, NQ
+
+`scripts/run_donchian_futures_backtest.py` — took the one strategy that
+held up in the crypto showdown and tested it against gold, crude oil, and
+both stock index futures, using each instrument's continuous daily series.
+
+**Contract size / account size, clarified up front:** micro contracts
+(MGC/MCL/MES/MNQ) on a $10,000 account and full-size contracts on a
+$100,000 account are not two separate things tested here — every
+`micro_multiplier` in `config/instruments.yaml` is exactly 1/10 of the
+corresponding full multiplier, and $100k is exactly 10x $10k, so
+`PositionSizer`'s contracts-per-trade calculation is mathematically
+identical either way. Verified directly, not assumed, before running
+anything. One run covers both.
+
+### Blocked by risk sizing, not by the strategy itself
+
+At the standard 1-2% risk budget used throughout this project, **GC, ES,
+and NQ produce zero tradeable signals — every single signal any of them
+ever generated needs more risk than the budget allows for even 1
+contract**, regardless of micro-vs-full contract size:
+
+| Symbol | Cheapest signal's risk (smallest contract) | % of $10k-equivalent account |
+|---|---|---|
+| CL | $135 | 1.35% |
+| ES | $489 | 4.89% |
+| GC | $633 | 6.33% |
+| NQ | $873 | 8.73% |
+
+CL is the only one where any signals clear the bar at all — 7 trades at
+2% risk in training, and they collectively **lose** money (profit factor
+0.62). This is the same structural finding the trendline cascade hit on
+GC/NQ/SI/BZ earlier in this file, now confirmed independently with a
+completely different strategy (ATR-based stops instead of trendline-
+distance stops): the stop distances these instruments' daily volatility
+produces are wide relative to account size in a way contract size alone
+doesn't fix, since risk-as-a-percentage-of-account is scale-invariant to
+the micro/full choice.
+
+### Does the strategy have real signal here at all? Checked directly
+
+Rather than stop at "not tradeable within 1-2% risk," re-ran without any
+position-sizing constraint (1 contract flat, ignoring account size) to see
+whether Donchian breakout has *any* underlying edge on these instruments,
+independent of whether a modest account could afford to trade it:
+
+| Symbol | Train (trades, win rate, PF) | Test (trades, win rate, PF) |
+|---|---|---|
+| **NQ** | 15, 53%, **1.85** | 8, 50%, **1.28** |
+| GC | 19, 58%, 1.60 | 7, 43%, 0.94 |
+| CL | 20, 25%, 0.51 | 13, 62%, 1.41 |
+| ES | 14, 36%, 0.99 | 7, 43%, 1.23 |
+
+**NQ is the one futures instrument whose result echoes BTC-Donchian's
+shape** — profitable on both sides, no sign flip, though on a much
+smaller sample (23 total trades vs. BTC's 94, so considerably less
+confidence). GC looks good in training and decays to roughly breakeven in
+test — a real result, but not a confirmed one. CL and ES show the same
+sign-flipping, noise-shaped pattern as most of the crypto showdown's
+non-survivors.
+
+### The practical conclusion
+
+Even NQ's decent-looking numbers can't actually be traded at standard
+1-2% risk management on a $10k (or equivalent $100k-full-size) account —
+its cheapest signal alone needs 8.73%. Getting NQ's Donchian breakout
+into a tradeable state would need roughly a $44k+ account just to size
+the *cheapest* signal at 2% risk (most signals, being pricier than the
+minimum, would need considerably more) — or a redesigned, tighter stop
+than the standard 2x-ATR used here, which is a strategy change, not an
+account-size fix. Neither has been tested; this section reports the
+finding, not a fix for it.
