@@ -1208,3 +1208,99 @@ better on every metric measured here, but a 1:2-or-better rule is a
 defensible, common risk-management floor many traders hold to regardless
 of backtested performance. Both are reported; which one (if either) to
 paper-trade is a call the strategy's own numbers can't make.
+
+## Increasing profit on the 1:1.5 version: a third portfolio sleeve, plus compounding
+
+`scripts/run_profit_enhancements.py` — moving forward with the validated
+1:1.5 reward:risk version (not the stricter 1:2 variant above), two ways
+to increase total profit without touching the strategy's own parameters
+at all, which is deliberate: any new parameter reopens the multiple-
+comparisons risk this project has repeatedly found not worth it. Both are
+mechanical/structural changes to how capital is deployed around an
+already-fixed, already-validated signal rule.
+
+### A third sleeve: BNB passes the same bar BTC and SOL did; XRP doesn't
+
+Before adding anything to the portfolio, it gets the identical full
+stress test BTC and SOL already passed — not just a good-looking
+calendar-year number. Two coins were checked (both established, long-
+Binance-history large caps, chosen for that reason before looking at any
+result — not picked after the fact for looking good):
+
+| | Bear market PF | 2nd holdout (both halves) | Original test PF | True drawdown | Recovered? |
+|---|---|---|---|---|---|
+| **BNB** | 1.45 | 1.77 / 1.43 | 1.43 | 4.11% | Yes, ~10 months |
+| XRP | 2.04 | 2.05 / **0.90** | 1.24 | 5.87% | **Never** |
+
+**BNB passes cleanly** — every window in the 1.4-1.8 range, no sign
+flips, the tightest, most consistent spread of any of the three coins
+tested so far (tighter than SOL's 1.1-2.1). Added to the portfolio.
+
+**XRP does not** — its second holdout flips sign between halves (2.05
+then 0.90, the losing kind of inconsistency this project's methodology
+exists to catch), and its true continuous drawdown never recovered by the
+end of available data, the same red flag ETH showed. Checked and reported
+honestly rather than quietly left out; not added.
+
+### Part 1: BTC + SOL + BNB, three-asset portfolio
+
+Same fixed, unswept Donchian rule on all three, no parameters changed.
+Two ways to read this, both shown — the honest, capital-constrained
+version is the one that matters for an actual $10,000 account:
+
+**If each sleeve gets its own full $10k risk-reference** (the aggressive
+reading — effectively needs ~$30k total capital to run all three
+simultaneously): combined 289 trades, PF 1.54, pnl +$7,667 (1% risk),
+max drawdown 10.04% of the $10k reference.
+
+**If one real $10,000 account is split three ways** ($3,333/sleeve — see
+Part 2 below, which computes this properly): this is the number that
+actually answers "what does $10,000 do."
+
+### Part 2: compounding — and the properly-divided $10k comparison that matters
+
+| | $10,000 account, 1% risk | $10,000 account, 2% risk |
+|---|---|---|
+| BTC alone (full $10k, no split) | $12,595 (+25.9%), DD 5.21% | $15,194 (+51.9%), DD 10.43% |
+| 3-asset, fixed size, $10k split 3 ways | $12,555 (+25.5%) | $15,113 (+51.1%) |
+| **3-asset, compounding, $10k split 3 ways** | **$12,811 (+28.1%), DD 3.64%** | **$16,159 (+61.6%), DD 8.79%** |
+
+Splitting one real $10,000 account across three sleeves with no
+reinvestment (row 2) performs almost identically to holding BTC alone
+(row 1) — diversification alone, without compounding, mostly just
+trades concentration risk for smoother returns at roughly the same total
+number, which is the expected, unglamorous result of dividing capital
+three ways with a similar edge on each piece.
+
+**Compounding is what actually moves the total-return number** (row 3):
+letting each sleeve reinvest its own gains takes the 1%-risk case from
++25.5% (fixed) to +28.1%, and the 2%-risk case from +51.1% to +61.6% —
+and the combined portfolio's drawdown (3.64% / 8.79%) comes in *lower*
+than BTC alone's own drawdown (5.21% / 10.43%), not higher. More profit
+and less drawdown than the single-asset baseline, from the same
+$10,000, by combining diversification (Part 1) with reinvestment
+(this part) — neither alone gets there; the combination does.
+
+Compounding's mechanical honesty check, per sleeve (why the boost is
+modest, not dramatic, at 1% risk): BTC's own $3,333 sleeve compounding
+vs. fixed sizing is +2.1% better in final balance, SOL +2.0%, BNB +2.0%
+— compounding return being small on a $3,333 starting stake over 94-100
+trades is expected arithmetic (each individual trade is a small fraction
+of the account, so reinvesting its gain barely changes the next trade's
+size) and gets more pronounced at 2% risk (+6.7% to +7.2% per sleeve) and
+would keep growing with more capital or more trades, not evidence
+against a real, if modest, compounding effect. Per-sleeve compounding
+drawdown (as % of that sleeve's *own* starting stake) is naturally larger
+than the combined-portfolio percentage — BTC's sleeve alone can see 6-14%
+drawdown on its own $3,333, same diversification-smoothing effect as
+Part 1, now visible at the sleeve level too.
+
+### The honest summary
+
+Two changes, neither touching the validated signal rule: adding a third,
+independently-stress-tested asset (BNB), and letting gains compound
+instead of sizing off a fixed balance. Together, on the same $10,000
+this whole project has used as its reference account throughout, they
+outperform holding BTC alone on both total return and drawdown. Neither
+change alone (diversification without compounding, or compounding a
+single asset) gets there by itself — it's the combination that does.

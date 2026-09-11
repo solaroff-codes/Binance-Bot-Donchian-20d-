@@ -12,7 +12,7 @@ def test_load_crypto_instruments_has_expected_fields():
 
 
 def test_symbol_and_interval_maps_are_non_empty_and_distinct():
-    assert len(SYMBOL_MAP) == 3
-    assert len(set(SYMBOL_MAP.values())) == 3  # no two short names map to the same Binance pair
+    assert len(SYMBOL_MAP) == 5
+    assert len(set(SYMBOL_MAP.values())) == 5  # no two short names map to the same Binance pair
     assert len(INTERVAL_MAP) == 5
     assert len(set(INTERVAL_MAP.values())) == 5

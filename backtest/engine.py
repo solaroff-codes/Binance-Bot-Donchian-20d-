@@ -267,6 +267,136 @@ def simulate_trades(
     return trades
 
 
+def simulate_trades_compounding(
+    df: pd.DataFrame,
+    signals: list[SignalLike],
+    multiplier: float = 1.0,
+    high_col: str = "high",
+    low_col: str = "low",
+    timestamp_col: str = "date",
+    starting_capital: float = 10_000.0,
+    risk_pct_per_trade: float = 0.01,
+    cost_model: CostModel | None = None,
+    skip_log: list | None = None,
+) -> list[Trade]:
+    """
+    Same stop/target walk-forward as simulate_trades(), but position size
+    is recomputed from CURRENT equity (starting_capital plus every
+    realized P&L so far) before each trade, instead of a fixed
+    account_size throughout — what a real account actually does: a bigger
+    balance after a winning streak sizes the next trade bigger, a smaller
+    one after a loss sizes smaller. simulate_trades()'s PositionSizer is
+    deliberately non-compounding (fixed account_size) because that's the
+    right choice for validating an edge — comparing runs at a constant
+    baseline isolates the strategy's own performance from the sizing
+    mechanism. This is for the different question of "what would this
+    account's balance actually have done," where compounding is the
+    realistic behavior.
+
+    Always single-position (no enforce_single_position=False option) —
+    "what would this account's balance have been" only makes sense for a
+    strictly sequential, one-position-at-a-time account; parallel
+    overlapping positions would need to split a single balance between
+    them in some order-dependent way that has no one right answer.
+
+    A trade that can't size even the smallest unit within the risk budget
+    is skipped (same convention as sized_and_costed_pnl) — this can
+    happen here even where it wouldn't with a fixed account_size, if a
+    losing streak has shrunk equity enough.
+    """
+    out = df.reset_index(drop=True)
+    timestamps = out[timestamp_col]
+    ordered_signals = sorted(signals, key=lambda s: s.entry_ts)
+
+    trades: list[Trade] = []
+    equity = starting_capital
+    blocked_until_date = None
+    position_open_indefinitely = False
+
+    for signal in ordered_signals:
+        if position_open_indefinitely:
+            continue
+        if blocked_until_date is not None and pd.Timestamp(signal.entry_ts).date() < blocked_until_date:
+            continue
+
+        risk_points = abs(signal.entry_price - signal.stop_price)
+        future = out[timestamps > signal.entry_ts]
+
+        exit_ts = None
+        exit_price = None
+        outcome: Literal["win", "loss", "open"] = "open"
+
+        for _, bar in future.iterrows():
+            hit_stop = (
+                bar[low_col] <= signal.stop_price
+                if signal.direction == "long"
+                else bar[high_col] >= signal.stop_price
+            )
+            hit_target = (
+                bar[high_col] >= signal.target_price
+                if signal.direction == "long"
+                else bar[low_col] <= signal.target_price
+            )
+            if hit_stop:
+                exit_ts, exit_price, outcome = bar[timestamp_col], signal.stop_price, "loss"
+                break
+            if hit_target:
+                exit_ts, exit_price, outcome = bar[timestamp_col], signal.target_price, "win"
+                break
+
+        if outcome == "open":
+            pnl_points = None
+            r_multiple = None
+            pnl_dollars = None
+            contracts = 1
+        else:
+            signed = 1 if signal.direction == "long" else -1
+            pnl_points = signed * (exit_price - signal.entry_price)
+            r_multiple = pnl_points / risk_points if risk_points else None
+
+            sizer = PositionSizer(account_size=equity, risk_pct_per_trade=risk_pct_per_trade)
+            sized = sized_and_costed_pnl(
+                signal.direction, signal.entry_price, exit_price, risk_points,
+                multiplier, cost_model, sizer,
+            )
+            if sized is None:
+                if skip_log is not None:
+                    skip_log.append({
+                        "entry_ts": signal.entry_ts, "reason": "undersized",
+                        "risk_points": risk_points,
+                        "risk_dollars_at_1_contract": risk_points * multiplier,
+                        "equity_at_time": equity,
+                    })
+                continue
+            pnl_dollars, contracts = sized
+            equity += pnl_dollars
+
+        trades.append(
+            Trade(
+                entry_ts=signal.entry_ts,
+                exit_ts=exit_ts,
+                direction=signal.direction,
+                entry_price=signal.entry_price,
+                stop_price=signal.stop_price,
+                target_price=signal.target_price,
+                exit_price=exit_price,
+                outcome=outcome,
+                risk_points=risk_points,
+                pnl_points=pnl_points,
+                r_multiple=r_multiple,
+                pnl_dollars=pnl_dollars,
+                contracts=contracts,
+            )
+        )
+
+        if outcome == "open":
+            position_open_indefinitely = True
+        else:
+            blocked_until_date = pd.Timestamp(exit_ts).date()
+
+    return trades
+
+
 def compute_drawdown_curve(trades: list[Trade]) -> dict:
     """
     The full drawdown profile from ONE continuous equity curve — trades

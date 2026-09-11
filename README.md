@@ -250,6 +250,24 @@ genuine train/test split were added:
   version (if either) to paper-trade is a risk-preference call the
   numbers alone can't settle. See `backtest/README.md`'s "Enhancing BTC
   (+ SOL) Donchian" section.
+- **Moving forward with the 1:1.5 version, found a way to increase
+  profit without touching the strategy's own parameters: a third
+  portfolio sleeve (BNB) plus compounding, together beat BTC alone on
+  both return and drawdown.** BNB was given the exact same full stress
+  test BTC/SOL passed (bear market, second holdout, original test window)
+  before being trusted — it passed cleanly (PF 1.4-1.8 everywhere,
+  tightest spread of the three coins tested, 4.11% drawdown, recovered in
+  ~10 months). XRP was checked too and didn't pass (sign-flipping second
+  holdout, an unrecovered drawdown like ETH's) — not added. On the same
+  $10,000 reference account throughout this project: splitting it three
+  ways (BTC+SOL+BNB) with no reinvestment barely beats holding BTC alone;
+  letting each sleeve **compound** its own gains is what actually moves
+  the number — 1% risk: +28.1% return with 3.64% drawdown, vs. BTC
+  alone's +25.9% with 5.21% drawdown. More profit *and* less drawdown
+  than the single-asset baseline — neither diversification nor
+  compounding alone gets there, the combination does. Added
+  `backtest/engine.py`'s `simulate_trades_compounding()` for this. See
+  `backtest/README.md`'s "Increasing profit on the 1:1.5 version" section.
 - **The original Wyckoff/Fibonacci/Elliott Wave confluence strategy —
   what this project started with — has now been given the same honest
   treatment, and does not clear the bar anywhere.** On daily bars it's too
@@ -290,8 +308,11 @@ fixed days-before-expiry rule — documented tradeoff in
 sub-daily crypto data isn't computationally tractable with the current
 walk-forward trendline fit; see `backtest/README.md`'s crypto section), a
 faster `walk_forward_trendlines` refit strategy in general (which would
-unblock that), extending `paper/paper_trader.py` to run SOL + Donchian
-alongside BTC now that SOL has passed the same stress test, and a Binance
+unblock that), extending `paper/paper_trader.py` to the full three-asset
+compounding portfolio (BTC+SOL+BNB) now that all three have passed the
+same stress test — the current paper trader still runs BTC alone, a
+single-asset fixed-size simulation, not yet the compounding/diversified
+version this session validated, and a Binance
 Testnet paper-trading path for real order-placement mechanics
 (`paper/README.md`'s "Testnet" section — the current paper trader is pure
 simulation, no orders ever placed). Every strategy this project has built

@@ -1,7 +1,15 @@
 import pandas as pd
 import pytest
 
-from backtest.engine import CostModel, PositionSizer, Trade, compute_drawdown_curve, compute_metrics, simulate_trades
+from backtest.engine import (
+    CostModel,
+    PositionSizer,
+    Trade,
+    compute_drawdown_curve,
+    compute_metrics,
+    simulate_trades,
+    simulate_trades_compounding,
+)
 from strategy.signals import Signal
 
 
@@ -316,3 +324,54 @@ def test_compute_drawdown_curve_handles_no_trades():
     curve = compute_drawdown_curve([])
     assert curve["max_drawdown_dollars"] is None
     assert curve["peak_ts"] is None
+
+
+def test_simulate_trades_compounding_sizes_next_trade_off_grown_equity():
+    dates = pd.date_range("2026-01-01", periods=4, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "high": [100, 108, 111, 113],
+            "low": [95, 97, 99, 104],
+            "close": [100, 103, 110, 109],
+        }
+    )
+    sig1 = _signal(entry_ts=dates[0], entry_price=100, stop_price=95, target_price=110)
+    sig2 = _signal(entry_ts=dates[2], entry_price=110, stop_price=105, target_price=120)
+
+    trades = simulate_trades_compounding(
+        df, [sig1, sig2], multiplier=1, starting_capital=10_000, risk_pct_per_trade=0.02,
+    )
+    assert len(trades) == 2
+
+    t1, t2 = trades
+    # Trade 1: $10,000 * 2% = $200 budget / $5 risk-per-unit = 40 units.
+    assert t1.outcome == "win"
+    assert t1.contracts == 40
+    assert t1.pnl_dollars == pytest.approx(400.0)
+
+    # Trade 2 sizes off the GROWN equity ($10,400, not the original
+    # $10,000): $10,400 * 2% = $208 / $5 = 41 units, one more than a
+    # fixed-account_size sizer would have given.
+    assert t2.outcome == "loss"
+    assert t2.contracts == 41
+    assert t2.pnl_dollars == pytest.approx(-205.0)
+
+
+def test_simulate_trades_compounding_skips_when_equity_cannot_size_even_one_unit():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 106, 106], "low": [89, 99, 99], "close": [100, 105, 105]}
+    )
+    # risk_points=10, multiplier=1000 -> $10,000 risk for 1 unit, but the
+    # budget is only $100 (1% of $10k starting capital) -> skipped, same
+    # convention as sized_and_costed_pnl / simulate_trades.
+    signal = _signal(entry_ts=dates[0], stop_price=90, target_price=105)
+
+    skip_log = []
+    trades = simulate_trades_compounding(
+        df, [signal], multiplier=1000, starting_capital=10_000, risk_pct_per_trade=0.01, skip_log=skip_log,
+    )
+    assert trades == []
+    assert len(skip_log) == 1
+    assert skip_log[0]["reason"] == "undersized"

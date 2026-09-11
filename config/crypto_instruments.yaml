@@ -40,3 +40,17 @@ SOL:
   tick_size: 0.01
   micro_multiplier: 0.0001
   commission_pct: 0.001
+
+BNB:
+  description: "Binance Coin (BNBUSDT spot)"
+  multiplier: 1
+  tick_size: 0.01
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+XRP:
+  description: "XRP (XRPUSDT spot)"
+  multiplier: 1
+  tick_size: 0.0001
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
