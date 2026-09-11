@@ -58,13 +58,24 @@ directly to adjust).
 1. Open Task Scheduler → Create Basic Task.
 2. Trigger: Daily, some time after 00:05 UTC (convert to local time —
    e.g. if local time is UTC-5, that's 19:05 the previous day).
-3. Action: Start a program —
-   - Program/script: full path to `.venv\Scripts\python.exe`
-   - Arguments: full path to `paper\paper_trader.py`
+3. Action: Start a program. Task Scheduler doesn't capture a program's
+   console output by itself — running `python.exe` directly means every
+   printed status line just vanishes. To keep a persistent log, run it
+   through `cmd.exe` with redirection instead:
+   - Program/script: `cmd.exe`
+   - Add arguments (one line, paths adjusted if this project ever moves):
+     ```
+     /c ""C:\Users\Privremeno-povremeni\Desktop\Claude Quant\.venv\Scripts\python.exe" "C:\Users\Privremeno-povremeni\Desktop\Claude Quant\paper\paper_trader.py" >> "C:\Users\Privremeno-povremeni\Desktop\Claude Quant\paper\output\paper_trader.log" 2>&1"
+     ```
+     The outer `"..."` around the whole argument string is required by
+     `cmd /c` because the inner paths contain spaces ("Claude Quant") —
+     without it cmd misparses where the command ends. `>>` appends rather
+     than overwrites, so the log accumulates every run; `2>&1` folds
+     errors into it too, so a crashed run is visible instead of silent.
    - Start in: the project root (`C:\Users\Privremeno-povremeni\Desktop\Claude Quant`)
-4. Save. Check `paper/output/btc_donchian_paper_trades.csv` periodically,
-   or redirect the task's output to a log file if you want a persistent
-   run history beyond what's printed to console.
+4. Save. Check `paper/output/btc_donchian_paper_trades.csv` for the trade
+   log, or `paper/output/paper_trader.log` for the full run history
+   (both gitignored — machine-local, not project history).
 
 ## Testnet (real order placement, still no real money) — not built yet
 
