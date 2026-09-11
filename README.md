@@ -37,7 +37,10 @@ confluence rule, and a multi-timeframe trendline bounce/break cascade
   support), a trailing-stop exit variant (`trailing.py`), a runner that
   sweeps multiple instrument configs into one comparable summary
   (`runner.py`), and a parameter-grid sweep utility (`sweep.py`)
-- `paper/` — live paper-trading executor. Phase 3, not yet built.
+- `paper/` — live paper-trading executor. `paper_trader.py` forward-tests
+  BTC + Donchian breakout (the one validated strategy — see Status below)
+  against live public Binance data with no account or API key; see
+  `paper/README.md`.
 - `scripts/` — runnable entry points: `fetch_all_instruments.py`,
   `fetch_crypto_data.py`, `build_continuous_contracts.py`,
   `run_strategy.py`, `run_backtest.py`, `run_trendline_backtest.py`,
@@ -207,6 +210,13 @@ genuine train/test split were added:
   it is still one instrument (ETH/SOL-Donchian did not replicate it) and
   still short of live paper-trading validation. See
   `backtest/README.md`'s "Stress-testing BTC + Donchian" section.
+- **Paper trading is live.** `paper/paper_trader.py` forward-tests BTC +
+  Donchian breakout against real public Binance market data — no
+  account, no API key, no order ever placed, pure simulation reusing the
+  same validated `simulate_trades`/`CostModel`/`PositionSizer` code the
+  backtest used. Run once daily after 00:00 UTC; see `paper/README.md`
+  for the exact setup and how to automate it. Nothing else in this
+  project has reached this stage.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

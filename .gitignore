@@ -25,3 +25,7 @@ Thumbs.db
 # Backtest output
 backtest/output/
 *.log
+
+# Paper trading state/output (regenerable, machine-specific)
+paper/state/
+paper/output/
