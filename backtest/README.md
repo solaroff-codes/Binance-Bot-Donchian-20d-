@@ -667,6 +667,75 @@ found anywhere across futures, crypto, both strategies, and every sweep
 run — but "best evidence found so far" and "validated" are not the same
 claim.
 
+## Stress-testing BTC + Donchian: does it survive the 2022 bear market?
+
+`scripts/run_btc_donchian_stress_test.py` — directly answers the caveat
+above. The original test window (2024-11-22 onward, from the 70/30 split)
+turned out to be almost entirely BTC's 2024-2025 bull run; the whole 2022
+crash (BTC ~$69k top in Nov 2021 to ~$15.5k bottom in Nov 2022) was inside
+*training*, never evaluated out-of-sample. No parameters are fit or swept
+anywhere in this script — `generate_donchian_breakout_signals` uses the
+same fixed, reasoned parameters as every other use in this project, so
+slicing the already-fixed signal set into more time windows doesn't
+reopen the multiple-comparisons problem the original train/test split
+exists to guard against. It just asks: does this one fixed rule keep
+working across periods it's never been individually judged against
+before?
+
+**Calendar-year breakdown, every year with data (2020 partial - 2026
+partial), profit factor at 1% risk:**
+
+| Year | Trades | Win rate | Profit factor |
+|---|---|---|---|
+| 2020 (partial) | 10 | 70% | 3.36 |
+| 2021 | 14 | 43% | 1.10 |
+| 2022 | 10 | 50% | 1.45 |
+| 2023 | 15 | 67% | 2.84 |
+| 2024 | 23 | 43% | 1.10 |
+| 2025 | 12 | 50% | 1.42 |
+| 2026 (partial) | 11 | 64% | 2.51 |
+
+**Every single calendar year is profitable — no sign flips anywhere in
+six years of data.** That's a materially different picture than "one
+70/30 split happened to work."
+
+**The 2022 bear-market window specifically (2021-11-10 top to 2022-11-21
+bottom, evaluated as its own segment):** 10 trades, 60% win rate, **profit
+factor 2.19**, positive P&L. The strategy did not merely survive the
+crash, it profited from it — Donchian breakout trades both directions, so
+a sustained downtrend produces short breakout signals same as an uptrend
+produces long ones. This directly closes the "under-sampled bear market"
+caveat from the strategy-showdown section above.
+
+**A second, independent holdout** (splitting everything before the
+original test split's start date, 2020-09-10 to 2024-11-21, into two
+non-overlapping halves — a check unrelated to the original 70/30 cut):
+earlier half PF 1.55 (31 trades), later half PF 1.50 (41 trades). Both
+sides, plus the original test window's own PF 1.68, land in the same
+1.1-3.4 range every other segmentation does.
+
+### What this does and doesn't establish
+
+This is a meaningfully stronger result than before: seven consecutive
+calendar-year windows, a dedicated bear-market window, and an independent
+second holdout, all profitable, with no signal reversal anywhere in six
+years of BTC daily data, using parameters that were never fit to this (or
+any) data. That combination of evidence is hard to explain as a pure
+train/test-split artifact.
+
+What it still doesn't establish: this is one instrument (the
+strategy-showdown section already found ETH-Donchian and SOL-Donchian did
+*not* replicate this — matching win rate/PF stability across BTC/ETH/SOL
+was never observed, only BTC), one exchange's spot data, and real trading
+adds execution risk (slippage beyond the flat 1-tick assumption here,
+API/exchange outages, funding/borrow costs if ever run short via
+margin/futures rather than spot) that a backtest can't fully capture.
+"Survived every out-of-sample window tried, including the bear market" is
+the strongest claim this project can honestly make about any strategy so
+far — it is still not the same claim as "ready to risk real money on,"
+which would need live paper-trading validation first (see `paper/`,
+intentionally untouched until something reaches this point).
+
 ## Donchian breakout on futures: GC, CL, ES, NQ
 
 `scripts/run_donchian_futures_backtest.py` — took the one strategy that

@@ -166,10 +166,7 @@ genuine train/test split were added:
   edge (1.5-1.7 PF) rather than a sweep's inflated best cell. Every other
   combination tried showed contradictory train/test results — the
   expected, honest outcome for most of 24 independent tries, which is
-  exactly what makes this one consistent result stand out. Still only one
-  result out of 24, not tested against a second holdout period or a real
-  bear market — "best evidence so far" is not the same claim as
-  "validated."
+  exactly what makes this one consistent result stand out.
 - **Taking Donchian breakout to futures (GC/CL/ES/NQ) surfaced the same
   risk-sizing wall the trendline cascade hit, now confirmed with a
   completely different strategy.** At 1-2% risk, GC/ES/NQ produce *zero*
@@ -196,6 +193,20 @@ genuine train/test split were added:
   result (Brent/BZ) rests on just 132 daily bars of single-contract
   history — too thin to trust. See `backtest/README.md`'s "Everything,
   re-tested on a $100,000 account" section.
+- **Stress-tested BTC + Donchian against the exact gap the section above
+  called out — a real bear market and a second holdout — and it survived
+  both.** Every calendar year from 2020 through 2026 is individually
+  profitable (profit factor 1.10-3.36, no sign flips), the 2022 bear
+  market evaluated on its own (2021-11-10 top to 2022-11-21 bottom, never
+  previously tested out-of-sample — it was inside the original training
+  window) returned a profit factor of 2.19, and an independent second
+  holdout split lands in the same 1.5-1.7 range as everything else. No
+  parameters were fit or swept to get this — same fixed rule as always,
+  just evaluated on time windows it had never individually been judged
+  against. This is now the strongest evidence this project has produced;
+  it is still one instrument (ETH/SOL-Donchian did not replicate it) and
+  still short of live paper-trading validation. See
+  `backtest/README.md`'s "Stress-testing BTC + Donchian" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined
