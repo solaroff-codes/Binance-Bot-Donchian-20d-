@@ -166,10 +166,13 @@ genuine train/test split were added:
   factor 1.53) and 24 test trades (54% win rate, profit factor 1.68) — win
   rate, profit factor, *and* drawdown all stable or improved out of
   sample, a believable ~15 trades/year frequency, and a plausible-sized
-  edge (1.5-1.7 PF) rather than a sweep's inflated best cell. Every other
-  combination tried showed contradictory train/test results — the
-  expected, honest outcome for most of 24 independent tries, which is
-  exactly what makes this one consistent result stand out.
+  edge (1.5-1.7 PF) rather than a sweep's inflated best cell. **Correction:**
+  this used to say BTC-Donchian was the *only* combination that cleared
+  train PF>1 and test PF>1 — re-checking the saved results directly found
+  that's wrong; 4 of the 24 combinations pass that filter (ETH+EMA
+  crossover and SOL+MACD crossover also do, on thinner samples never
+  separately stress-tested). BTC-Donchian is still the strongest by a
+  clear margin — see `backtest/README.md` for the corrected accounting.
 - **Taking Donchian breakout to futures (GC/CL/ES/NQ) surfaced the same
   risk-sizing wall the trendline cascade hit, now confirmed with a
   completely different strategy.** At 1-2% risk, GC/ES/NQ produce *zero*
@@ -207,9 +210,30 @@ genuine train/test split were added:
   parameters were fit or swept to get this — same fixed rule as always,
   just evaluated on time windows it had never individually been judged
   against. This is now the strongest evidence this project has produced;
-  it is still one instrument (ETH/SOL-Donchian did not replicate it) and
-  still short of live paper-trading validation. See
+  it is still short of live paper-trading validation. A follow-up
+  calendar-year check found ETH-Donchian is a clean, consistent negative
+  (full-period PF 0.98) but **SOL-Donchian is closer to BTC's picture than
+  the original single-split test suggested** — full-period PF 1.51 (vs.
+  BTC's 1.56) and every calendar year individually profitable, including
+  2022 — though SOL hasn't had the full bear-market/second-holdout
+  treatment yet, only this calendar-year check. See
   `backtest/README.md`'s "Stress-testing BTC + Donchian" section.
+- **The original Wyckoff/Fibonacci/Elliott Wave confluence strategy —
+  what this project started with — has now been given the same honest
+  treatment, and does not clear the bar anywhere.** On daily bars it's too
+  sparse to evaluate at all (0-2 signals across a multi-year history, on
+  any of GC/CL/ES/NQ). On 1-hour bars (the timeframe its earlier, cost-free
+  sweeps were actually run on) it produces small samples (3-17 trades)
+  with suspiciously extreme numbers (PF 3.7-16.8) — checked directly why:
+  a fixed, tight 0.5% stop paired with a variable, often much larger
+  Fibonacci-extension target mechanically inflates R-multiples on
+  whichever few trades happen to work, independent of any real edge. Not
+  reported as a finding to act on; reported so it doesn't quietly become
+  a "PF 16" headline the way earlier cost-free sweeps did before this
+  project learned better. Closes the last strategy that hadn't been put
+  through this project's honest methodology. See `backtest/README.md`'s
+  "The original confluence strategy, finally given the honest treatment"
+  section.
 - **Paper trading is live.** `paper/paper_trader.py` forward-tests BTC +
   Donchian breakout against real public Binance market data — no
   account, no API key, no order ever placed, pure simulation reusing the
@@ -225,17 +249,20 @@ but was never tested for costs, realistic sizing, or out-of-sample
 survival. Treat those numbers as upper bounds under favorable conditions,
 not expectations.
 
-Not yet built: extending the realistic-cost/sizing/train-test treatment to
-the confluence strategy (only the trendline cascade has been put through
-it so far), building or sourcing a true micro Brent contract or accepting
-BZ needs a larger account, continuous-contract data for Silver/Brent
-(single-contract only so far), true historical volume-crossover rolls for
-continuous stitching (currently a simpler fixed days-before-expiry rule —
-documented tradeoff in `data/continuous.py`), a cascade-structure sweep
-for crypto (skipped — sub-daily crypto data isn't computationally
-tractable with the current walk-forward trendline fit; see
-`backtest/README.md`'s crypto section), and a faster
-`walk_forward_trendlines` refit strategy in general, which would unblock
-both of those. Paper trading (`paper/`) is phase 3 and intentionally
-untouched until a config is
-validated through backtesting — which, per the above, none currently are.
+Not yet built: building or sourcing a true micro Brent contract or
+accepting BZ needs a larger account, continuous-contract data for
+Silver/Brent (single-contract only so far), true historical
+volume-crossover rolls for continuous stitching (currently a simpler
+fixed days-before-expiry rule — documented tradeoff in
+`data/continuous.py`), a cascade-structure sweep for crypto (skipped —
+sub-daily crypto data isn't computationally tractable with the current
+walk-forward trendline fit; see `backtest/README.md`'s crypto section), a
+faster `walk_forward_trendlines` refit strategy in general (which would
+unblock that), the full bear-market/second-holdout stress test applied to
+SOL-Donchian (only the calendar-year check has been run there so far),
+and a Binance Testnet paper-trading path for real order-placement
+mechanics (`paper/README.md`'s "Testnet" section — the current paper
+trader is pure simulation, no orders ever placed). Every strategy this
+project has built has now been through the honest realistic-cost/sizing/
+train-test treatment; BTC + Donchian breakout is the only one that
+passed, and is the only one live in `paper/`.

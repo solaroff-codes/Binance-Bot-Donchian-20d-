@@ -599,12 +599,40 @@ grid each would have reproduced the same problem at a larger scale. One
 principled choice per strategy, then real train/test validation, is the
 honest way to search across *strategies* instead of *parameters*.
 
+### Correction: this section originally said "exactly one" survivor — that was wrong
+
+An earlier version of this section claimed BTC + Donchian was the only
+(symbol, strategy) combination with profit factor above 1.0 on both train
+and test. Re-checking the saved `output/strategy_showdown.csv` directly
+found that's false: **four combinations pass that same filter**, not one —
+BTC-Donchian, but also ETH + EMA crossover (train PF 1.09, test PF 1.45,
+8 test trades), SOL + MACD crossover (train PF 1.14, test PF 1.17, 18 test
+trades), and SOL + Donchian breakout (train PF 1.66, test PF 1.12, 23 test
+trades — already mentioned further down as a "weaker secondary case," so
+this wasn't fully hidden, just not counted in the headline claim). Left
+as-is below with this correction rather than silently edited, since
+getting this wrong once is itself worth a visible record — see
+`backtest/README.md`'s change history via git if you want the original
+wording.
+
+None of the other three come close to BTC-Donchian's combination of
+sample size, stability, and now (see the stress-test section above) an
+entire additional round of bear-market/second-holdout validation — ETH-EMA
+and SOL-MACD both clear PF 1.0 on paper but on thin test samples (8 and 18
+trades) that have never been stress-tested the way BTC-Donchian has, and
+SOL-Donchian's own follow-up check (below) shows real but weaker
+consistency. The corrected, honest count is **4 out of 24, not 1** — still
+a minority, but the original "exactly one" framing overstated how rare a
+train/test-consistent result was here, which is worth knowing since it
+changes how surprised anyone should be that BTC-Donchian, specifically,
+worked.
+
 ### The headline result: BTC + Donchian channel breakout
 
-Of 24 (symbol, strategy) combinations tested, exactly one showed a
-profit factor consistently above 1.0 on *both* a large training sample
-and genuinely held-out test data, with the test period actually
-outperforming training rather than decaying:
+BTC + Donchian remains the strongest of the four survivors by a clear
+margin — matching win rate and drawdown behavior, not just profit factor,
+on the largest sample of the four, and the only one put through the
+additional bear-market/second-holdout stress test above:
 
 | Split | Trades | Win rate | Profit factor | Total P&L (2% risk) | Max DD (% acct) |
 |---|---|---|---|---|---|
@@ -621,8 +649,19 @@ not — a real, modest edge looks like this, not like a sweep's best cell.
 
 SOL's Donchian breakout is a weaker secondary case: strong in training
 (77 trades, PF 1.66) but decaying on test (23 trades, PF 1.12) — still
-positive, but a real falloff rather than BTC's stability. ETH's Donchian
+positive, but a real falloff rather than BTC's stability. A follow-up
+calendar-year check (see below) found this holds up reasonably well across
+most individual years too, though not as cleanly as BTC. ETH's Donchian
 result doesn't clear the bar at all (train PF 0.95, essentially breakeven).
+
+The other two combinations that technically pass the same train>1/test>1
+filter (see the correction above) are weaker still and have not been
+stress-tested further: **ETH + EMA crossover** (train PF 1.09 on 21
+trades — barely above 1.0 — test PF 1.45 but only 8 trades) and **SOL +
+MACD crossover** (train PF 1.14 on 57 trades, test PF 1.17 on 18 trades —
+modest but consistent). Neither is dismissed as noise below, but neither
+has earned the confidence BTC-Donchian has either; they're closer to
+"passed the same bar, not separately investigated" than "worth acting on."
 
 ### Everything else: mostly noise, and that's the honest, expected result
 
@@ -714,6 +753,34 @@ earlier half PF 1.55 (31 trades), later half PF 1.50 (41 trades). Both
 sides, plus the original test window's own PF 1.68, land in the same
 1.1-3.4 range every other segmentation does.
 
+### ETH and SOL Donchian, the same calendar-year check
+
+`scripts/run_eth_sol_donchian_stress_test.py` runs the identical
+calendar-year breakdown against ETH and SOL, to see *how* they fail —
+uniformly (a clean negative), or only on the specific original 70/30
+split (which would mean that split undersold them, the same concern
+raised about BTC before the section above).
+
+**ETH is a clean, consistent negative** — full-period PF 0.98 (104
+trades, effectively breakeven-to-losing), and the 2022 bear market and
+2024 are its two worst years (PF 0.67 and 0.62). This matches the
+original showdown finding and adds nothing to doubt it.
+
+**SOL is more interesting than the original single-split result
+suggested.** Full-period profit factor **1.51** across 100 trades — very
+close to BTC's own full-period 1.56 — and every single calendar year from
+2020 through 2026 is individually profitable (PF 1.02-2.75), including
+the 2022 bear market (PF 1.47, 10 trades). That's a materially better
+picture than the original showdown section's "decaying on test" framing
+implied. It doesn't change SOL-Donchian's status to "as validated as
+BTC" — the original 70/30 test split (train PF 1.66, test PF 1.12) is
+still the only holdout actually checked with position sizing and full
+metrics, and 1.12 is a real, if smaller, edge than 1.02-2.75 makes it
+look at a glance — but it does mean SOL deserves the same full stress
+test BTC got (dedicated bear-market window, independent second holdout)
+before being written off as "didn't replicate," which is not what this
+project's own numbers show.
+
 ### What this does and doesn't establish
 
 This is a meaningfully stronger result than before: seven consecutive
@@ -723,18 +790,20 @@ years of BTC daily data, using parameters that were never fit to this (or
 any) data. That combination of evidence is hard to explain as a pure
 train/test-split artifact.
 
-What it still doesn't establish: this is one instrument (the
-strategy-showdown section already found ETH-Donchian and SOL-Donchian did
-*not* replicate this — matching win rate/PF stability across BTC/ETH/SOL
-was never observed, only BTC), one exchange's spot data, and real trading
-adds execution risk (slippage beyond the flat 1-tick assumption here,
-API/exchange outages, funding/borrow costs if ever run short via
-margin/futures rather than spot) that a backtest can't fully capture.
-"Survived every out-of-sample window tried, including the bear market" is
-the strongest claim this project can honestly make about any strategy so
-far — it is still not the same claim as "ready to risk real money on,"
-which would need live paper-trading validation first (see `paper/`,
-intentionally untouched until something reaches this point).
+What it still doesn't establish: this is largely one instrument — ETH is
+a clean negative and stays one, but SOL's calendar-year picture (above)
+turned out closer to BTC's than the original single-split framing
+suggested, and SOL hasn't had the full bear-market/second-holdout
+treatment yet, only the calendar-year check. One exchange's spot data,
+and real trading adds execution risk (slippage beyond the flat 1-tick
+assumption here, API/exchange outages, funding/borrow costs if ever run
+short via margin/futures rather than spot) that a backtest can't fully
+capture. "Survived every out-of-sample window tried, including the bear
+market" is the strongest claim this project can honestly make about any
+strategy so far, and it's specifically a claim about BTC — it is still
+not the same claim as "ready to risk real money on," which would need
+live paper-trading validation first (see `paper/`, intentionally
+untouched until something reaches this point).
 
 ## Donchian breakout on futures: GC, CL, ES, NQ
 
@@ -898,3 +967,85 @@ coverage; it mainly confirmed that GC/CL/ES/NQ's earlier micro-contract
 results already told the whole story (being mathematically identical),
 and that SI/BZ need real historical depth (a continuous series) before
 any result on them means much.
+
+## The original confluence strategy, finally given the honest treatment
+
+`scripts/run_confluence_honest_backtest.py` — the Wyckoff accumulation/
+distribution + Fibonacci retracement + Elliott Wave confluence rule
+(`strategy/signals.py`) is what this project started with, before the
+trendline cascade, the technical-strategy showdown, or crypto existed.
+Every number reported for it anywhere in this project's early history
+(README.md's original "Current results", this file's "Combined
+confluence" section) had zero transaction costs, 1-contract sizing, and
+no train/test split — exactly the gap already closed for every other
+strategy. This is that treatment, finally applied here.
+
+Same methodology as the confluence rule's own earlier parameter sweeps
+(`scripts/sweep_params.py`, `scripts/sweep_entry_exit.py`): $100,000
+account, full-size contracts, 1 tick slippage, $2.50/contract commission,
+1-2% risk, 70/30 train/test split, `range_max_pct` x `retracement_zone` x
+`target_extension_ratio` swept on train only (36 combos), best-on-train
+evaluated on held-out test. Only GC, CL, ES, NQ have a confluence config
+at all (SI/BZ were added to the project after this strategy was mostly
+set aside in favor of the trendline cascade).
+
+### Daily bars: too sparse to evaluate at all
+
+On daily continuous data, **all four instruments produced 0-2 raw
+signals across their entire multi-year history** — never enough to reach
+even 3 train trades at any of the 36 grid combinations tried. This
+strategy's four-stage chain (a valid trading range forms, price breaks
+out, price impulses away and retraces into a specific Fibonacci zone, a
+confirming swing lands inside that zone) is simply too selective to fire
+more than a couple of times a year on daily bars. Not a bug, not a
+sizing problem — a genuine, honest "not enough signal to say anything"
+result.
+
+### 1 hour: some signal, but treat every number here with real suspicion
+
+The original (cost-free, unsplit) sweeps that first found this strategy's
+best-looking numbers were run on 1-hour bars, not daily — so this script
+also tried that timeframe rather than concluding "no signal" from daily
+alone:
+
+| Symbol | Signals | Train | Test |
+|---|---|---|---|
+| GC | 5 | 4 trades, PF 11.9 (risk 2% only) | 0 trades |
+| CL | 15 | 11 trades, PF 16.8 | 6 trades, PF 12.3 |
+| ES | 0-4 | 4 trades, PF 3.7 (risk 2% only) | 3 trades, PF 1.2 |
+| NQ | 3 | never reached 3 train trades | — |
+
+**CL's number in particular (PF 16.8 train, PF 12.3 test) is exactly the
+shape this project has learned to distrust on sight** — checked directly
+rather than reported at face value. The individual trades explain why:
+several show R-multiples of 8-13 (e.g. one trade risked ~$0.29/barrel and
+made ~$3/barrel). That's not a data glitch — it's this strategy's
+construction: the stop sits a fixed 0.5% (`stop_buffer_pct`) beyond the
+confirming swing, while the target is a Fibonacci extension of the
+impulse leg, which can be many times larger on a volatile instrument at
+hourly resolution. Tight, fixed-percent stop paired with a variable, often
+much larger target mechanically produces large R-multiples on the trades
+that *do* work, regardless of whether there's a real edge — and with only
+11 training and 6 test trades total, a couple of large winners dominate
+the whole result. This is a small-sample/structural-mechanics artifact
+explanation, not a confirmed data bug, but either way: **11-17 trades
+total, chosen as the best of a 36-combo train sweep, is not evidence this
+project is willing to act on** — it's reported here specifically so it
+doesn't quietly become a "PF 16" headline number the way earlier
+cost-free sweeps did before this project learned better.
+
+GC and ES's 1-hour numbers are even smaller-sample (3-4 trades) and not
+worth more than a footnote. NQ never reached a usable sample at all.
+
+### The honest conclusion
+
+The strategy this project started with has now been given the same
+honest treatment as everything else, and **it does not clear the bar
+anywhere** — daily bars starve it of signals entirely, and 1-hour bars
+produce samples too small (3-17 trades) and numbers too extreme (PF
+3.7-16.8) to trust, with a specific, identified mechanical reason (a
+fixed tight stop against a variable, often much larger target) for why
+the R-multiples look inflated even before considering sample size. This
+closes the last major "not yet built" gap in this project's honest-
+methodology coverage — every strategy that predates BTC + Donchian has
+now been tested the same way, and none of them beat it.
