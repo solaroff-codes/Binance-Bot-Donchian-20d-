@@ -1510,3 +1510,90 @@ entirely, at the cost of tying up more collateral, which is a real,
 practical way to get some of leverage's capital-efficiency benefit
 without its risk — not tested here, but the mechanism this section's own
 numbers point toward.
+
+## How far can this actually go? 7-10% risk, and true leveraged sizing
+
+Direct follow-up to a real constraint: on a $1,000 account, ~12.3% CAGR
+is genuinely slow in absolute dollar terms over a few years, even though
+it's a strong risk-adjusted number. `scripts/run_extreme_risk_test.py`
+tests the two remaining levers: pushing the already-validated
+risk-managed sizing further (7%, 10% — still bounded by the strategy's
+own 2x-ATR stop), and the fundamentally different thing "leverage" means
+in the common aggressive-retail sense — sizing a position from
+*notional* exposure (`current equity x leverage`, using the whole sleeve
+as margin) instead of from risk.
+
+### 7% and 10% risk per trade — still risk-managed, just heavier
+
+| Risk | Compounding | CAGR | Max drawdown (% of original $1,000) |
+|---|---|---|---|
+| 7% | full | 26.67% | 68.45% |
+| 7% | half-Kelly | 22.96% | 39.70% |
+| 10% | full | 35.05% | 149.30%* |
+| 10% | half-Kelly | 30.46% | 72.32% |
+
+*A drawdown over 100% is not a data error — it means the portfolio's
+peak (after compounding growth pushed it well above $1,000) fell by more
+dollars than the original starting stake, not that the account went
+negative; no single trade here ever risked more than 10% of that sleeve's
+*current* equity, so the account itself can't be wiped out this way. But
+a 68-149% swing relative to where you started is not a materially
+different risk profile from just buying and holding BTC (76.6% drawdown)
+— at this point the strategy has given up most of its own reason for
+existing. This is the practical ceiling of the risk-managed lever.
+
+### Leveraged notional sizing — every level tested destroyed the account
+
+`backtest/leveraged_notional.py`'s `simulate_leveraged_notional_trades()`
+sizes each trade as `current_equity x leverage`, using the entire sleeve
+as margin — no risk budget, no reserve. This is what "trading with 5x
+leverage" means to most retail traders, and it is a completely different
+thing from the capital-efficiency leverage tested in the section above
+(where position size stayed risk-based). Tested at 3x, 5x, 10x, and 20x,
+starting from the real $1,000 account, split three ways:
+
+| Leverage | $1,000 becomes | Liquidation events (of 3 sleeves) |
+|---|---|---|
+| 3x | **$85.81** (-91.4%) | 2 of 3 sleeves wiped to near-zero |
+| 5x | **$0.66** (-99.9%) | all 3 sleeves wiped |
+| 10x | **$0.13** (-100.0%) | all 3 sleeves wiped |
+| 20x | **$0.03** (-100.0%) | all 3 sleeves wiped |
+
+**Every leverage level tested destroyed the account within the 6-year
+backtest window — including 3x**, the same leverage level that was
+"effectively free" in the capital-efficiency test earlier in this file.
+The difference is entirely in what determines position size: risk-based
+sizing (3% of equity, scaled by the stop distance) caps the loss on any
+single trade regardless of leverage; notional sizing (equity x leverage,
+full margin) does not — the loss on a single bad trade is a direct
+function of how wide that trade's stop happens to be, and SOL/BNB's
+Donchian stops are frequently wide enough (median 14.6% and 9.2% of
+price, some trades over 60-79%) that even 3x notional exposure produces
+a loss deep enough to trigger liquidation outright. Once a sleeve is
+liquidated, it doesn't meaningfully recover — the equity left behind
+(often single dollars) can never compound back to relevance, which is the
+real mechanism of "risk of ruin": it isn't a probability that fluctuates
+with luck, it's close to a mathematical certainty given enough trades at
+this stop-width/leverage combination. One example from the data:
+BNB's sleeve at 3x grew from $333 to $2,004 on a winning streak before a
+single trade erased 99% of it in one move (2021-05-19) — leverage doesn't
+just risk the losses, it turns winning streaks into bigger eventual
+losses too, since the position sizing scales up right along with the
+account that's about to lose everything.
+
+### The honest answer
+
+There is no leverage level, and no configuration of this specific
+strategy, that turns $1,000 into meaningfully more money within a few
+years without either (a) accepting a drawdown in the 70-150% range that
+defeats the purpose of risk management in the first place (the 7-10%
+risk-managed rows above), or (b) a near-certain account wipeout (the
+leveraged-notional rows). This isn't a tuning problem solvable by trying
+a different leverage number — it's a direct consequence of how wide this
+strategy's own stops are relative to these coins' volatility. The
+strategy validated earlier in this file (3% risk, full compounding, 3x
+leverage used only for collateral efficiency) remains the only
+configuration tested anywhere in this project that combines a real edge
+with a survivable risk profile. Turning $1,000 into a lot of money
+quickly and turning $1,000 into more money reliably are, on this
+evidence, different goals — the second is what's been built here.

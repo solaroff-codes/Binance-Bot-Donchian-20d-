@@ -346,6 +346,32 @@ genuine train/test split were added:
   risk remains available as a more aggressive option (~$2,964 full
   compounding / ~$2,607 half-Kelly over the same 6 years) if more growth
   is wanted later.
+- **Tested how far risk could realistically be pushed on $1,000 — every
+  path leads somewhere worse, not better.** Extended the risk-managed
+  lever to 7% and 10% per trade: still bounded by the strategy's own
+  2x-ATR stop, but drawdown reaches 68-149% of the original stake —
+  already worse than just buying and holding BTC (76.6% drawdown), which
+  defeats the point of risk management. Then tested what "leverage"
+  means in the common aggressive-retail sense — sizing a position as
+  `current equity x leverage`, using the whole sleeve as margin, instead
+  of the risk-based sizing used everywhere else in this project.
+  **Every leverage level tested (3x, 5x, 10x, 20x) destroyed the $1,000
+  account within the 6-year backtest — including 3x**, the same level
+  that was "effectively free" under risk-based sizing. 3x notional
+  leverage: $1,000 → $85.81 (2 of 3 sleeves wiped). 5x, 10x, 20x: all
+  three sleeves wiped, account reduced to single dollars. This isn't a
+  leverage-number-tuning problem — SOL and BNB's Donchian stops are
+  routinely wide enough (14.6% and 9.2% of price, sometimes 60-79%) that
+  even light notional leverage produces a loss deep enough to trigger
+  liquidation outright, and a liquidated sleeve can't meaningfully
+  recover. The honest conclusion: there's no configuration of this
+  strategy that turns $1,000 into meaningfully more money within a few
+  years without either giving up risk management entirely (7-10% risk)
+  or a near-certain account wipeout (leveraged notional sizing) — the
+  validated 3% risk / full compounding / 3x-for-collateral-only
+  configuration remains the only one on record here with a real edge and
+  a survivable risk profile. See `backtest/README.md`'s "How far can this
+  actually go?" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined
