@@ -247,7 +247,19 @@ def run_once() -> None:
     try:
         client = BinanceFuturesClient(testnet=True)
     except RuntimeError as exc:
+        # Missing credentials -- our own check, already a clear message.
         print(str(exc))
+        return
+    except Exception as exc:
+        # python-binance's Client pings the API on construction by
+        # default -- this catches a bad/rejected key, a blocked network
+        # path (some cloud/datacenter IP ranges, GitHub Actions runners
+        # included, are sometimes blocked by Binance), or any other
+        # startup failure, so one bad connection doesn't crash the whole
+        # run with an unhandled traceback.
+        print(f"Could not connect to Binance Futures Testnet: {type(exc).__name__}: {exc}")
+        print("No state changed. This may be a blocked network path (some cloud IP "
+              "ranges are blocked by Binance) rather than a code bug -- see live/README.md.")
         return
 
     for symbol in SYMBOLS:

@@ -58,7 +58,19 @@ class BinanceFuturesClient:
                 "local .env for testing, GitHub Actions repository secrets for the "
                 "scheduled run) -- never hardcode these or pass them as literals."
             )
-        self.client = Client(api_key, api_secret, testnet=testnet)
+        # ping=False: python-binance's Client pings the LIVE mainnet spot
+        # API (api.binance.com) during __init__ by default, before there's
+        # any chance to redirect FUTURES_URL below -- this project never
+        # calls that spot endpoint at all (only futures_* methods, against
+        # whichever FUTURES_URL is set), so the startup ping is both
+        # unnecessary and, in practice, the first thing to fail if the
+        # network path to Binance's live API is restricted (e.g. some
+        # cloud-hosted IP ranges, GitHub Actions runners included --
+        # confirmed directly, not theoretical: this raised
+        # BinanceAPIException "Service unavailable from a restricted
+        # location" on the first real run, from the ping, not from any
+        # futures call).
+        self.client = Client(api_key, api_secret, testnet=testnet, ping=False)
         if testnet:
             self.client.FUTURES_URL = FUTURES_TESTNET_URL
         self.testnet = testnet
