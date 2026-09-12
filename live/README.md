@@ -106,18 +106,55 @@ then a total tracked equity line. State persists to
 because GitHub Actions runners are ephemeral and need this history to
 survive between scheduled runs.
 
-### 3. The scheduled run (GitHub Actions)
+### 3. The scheduled run — GitHub Actions does NOT work here (confirmed), use Task Scheduler instead
 
-`.github/workflows/live_trader.yml` runs daily at 00:05 UTC (and can be
-triggered manually from the repo's Actions tab via "Run workflow", useful
-for testing without waiting for the schedule). It installs
-`requirements.txt`, runs `live/live_trader.py` with the two secrets
-injected as environment variables, then commits any changed state/output
-files back to the repo under a `live-trader-bot` commit identity — so
-the repo will accumulate one automated commit per day this finds
-something to record. Since this repo is public, that history is visible
-to anyone; nothing sensitive is in it (the secrets never touch the repo
-itself, only GitHub's encrypted secret store).
+`.github/workflows/live_trader.yml` originally ran this daily via GitHub
+Actions' cron scheduler. **Confirmed directly that this cannot work**:
+every symbol failed with `HTTP Error 451` (Unavailable For Legal
+Reasons) on the very first real run — including the plain public
+market-data fetch, not just the authenticated futures call — because
+Binance blocks GitHub Actions runners' IP range (Azure-hosted, like most
+major cloud/datacenter ranges) entirely. This isn't fixable from this
+project's code; it's Binance's own compliance-driven IP blocking. The
+workflow's scheduled trigger has been removed (kept as manual-only, see
+the file's own comment) so it doesn't spam daily failure emails for
+something that structurally cannot succeed from that host.
+
+**Automation moved to a local machine instead** (Windows Task
+Scheduler — same pattern as `paper/paper_trader.py`'s, see
+`paper/README.md` for the general mechanics), since a home network's
+residential IP isn't subject to this block.
+
+1. Open Task Scheduler → Create Basic Task.
+2. Trigger: Daily, some time after 00:05 UTC (convert to local time —
+   e.g. if local time is UTC-5, that's 19:05 the previous day).
+3. Action: Start a program — run through `cmd.exe` with output
+   redirection, the same reasoning as the paper trader's setup (Task
+   Scheduler doesn't capture a program's console output on its own):
+   - Program/script: `cmd.exe`
+   - Add arguments (one line, paths adjusted if this project ever moves):
+     ```
+     /c ""C:\Users\Privremeno-povremeni\Desktop\Claude Quant\.venv\Scripts\python.exe" "C:\Users\Privremeno-povremeni\Desktop\Claude Quant\live\live_trader.py" >> "C:\Users\Privremeno-povremeni\Desktop\Claude Quant\live\output\live_trader.log" 2>&1"
+     ```
+   - Start in: the project root (`C:\Users\Privremeno-povremeni\Desktop\Claude Quant`)
+4. The credentials still need to reach the script as environment
+   variables — Task Scheduler doesn't read a `.env` file automatically.
+   Either set `BINANCE_TESTNET_API_KEY` / `BINANCE_TESTNET_API_SECRET` as
+   **permanent Windows user environment variables** (System Properties →
+   Environment Variables → New, under "User variables" — takes effect
+   for anything launched afterward, including Task Scheduler's own
+   process) so they're always present regardless of how the script is
+   launched, or load them from `.env` at the very top of the scheduled
+   command before running Python (a small wrapper script/loader — not
+   currently built in, since a permanent environment variable is simpler
+   and just as private on a single-user machine).
+5. Save. Check `live/output/live_trader.log` for the full run history,
+   `live/output/live_trades.csv` for the trade log, and
+   `live/state/live_trader_state.json` for current tracked equity —
+   these are **committed to the repo** here (unlike the paper trader's
+   gitignored equivalents), so remember to periodically `git add`/commit/
+   push them yourself now that GitHub Actions isn't doing it
+   automatically; not yet automated for the local-machine path.
 
 ## Known limitations, stated plainly rather than glossed over
 

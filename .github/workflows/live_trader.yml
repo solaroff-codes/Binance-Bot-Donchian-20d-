@@ -1,10 +1,20 @@
 name: Live trader (Binance Futures Testnet)
 
+# The scheduled (cron) trigger this workflow originally had is REMOVED,
+# not just unused: confirmed directly (HTTP 451 "Unavailable For Legal
+# Reasons" on every symbol, including the public market-data endpoint,
+# not just the authenticated futures API) that Binance blocks GitHub
+# Actions runners' IP range entirely. A scheduled trigger here would only
+# ever fail and spam daily failure-notification emails for something
+# that structurally cannot succeed. Automation moved to a local machine
+# instead (Windows Task Scheduler -- see live/README.md's "Automating
+# it" section, same pattern as paper/paper_trader.py's), which uses a
+# residential IP Binance doesn't block. workflow_dispatch (manual
+# trigger) is kept in case this is ever revisited from non-blocked
+# hosting -- not deleted, since the finding itself (and how it was
+# reached) is worth keeping visible rather than quietly removed.
 on:
-  schedule:
-    # 00:05 UTC daily -- shortly after Binance's daily candle close (00:00 UTC)
-    - cron: "5 0 * * *"
-  workflow_dispatch: {} # allows a manual "Run workflow" click for testing
+  workflow_dispatch: {}
 
 permissions:
   contents: write # needed to commit the updated state/trade-log files back to the repo

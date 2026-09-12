@@ -437,21 +437,32 @@ genuine train/test split were added:
   between trades, so rebalancing is a free internal transfer, not a
   taxable spot trade — matches how this project already models it. See
   `backtest/README.md`'s "A small, genuinely free improvement" section.
-- **Automated execution: a Binance Futures Testnet trading bot, scheduled
-  via GitHub Actions.** `live/live_trader.py` runs the same validated
-  signal logic as `paper/paper_trader.py`, but places real (testnet, fake
-  funds) orders — market entry plus `STOP_MARKET`/`TAKE_PROFIT_MARKET`
-  exits, reconciled daily against the exchange's own position/order state
-  rather than trusted from a local file alone. `DRY_RUN = True` by
-  default: every read against the testnet API is real, but no order is
-  placed until this is explicitly turned off. Added `python-binance` (for
-  correct HMAC request signing — not hand-rolled) and
-  `.github/workflows/live_trader.yml` (daily cron, commits the updated
-  state/trade-log back to the repo since Actions runners are ephemeral).
-  Real simplification worth knowing: the "3 sleeves" are this bot's own
-  bookkeeping, not a real segregation of funds — Binance Futures pools
-  all margin into one account balance. Going live with real money is a
-  separate, explicit, not-yet-made decision. See `live/README.md`.
+- **Automated execution: a Binance Futures Testnet trading bot.**
+  `live/live_trader.py` runs the same validated signal logic as
+  `paper/paper_trader.py`, but places real (testnet, fake funds) orders —
+  market entry plus `STOP_MARKET`/`TAKE_PROFIT_MARKET` exits, reconciled
+  daily against the exchange's own position/order state rather than
+  trusted from a local file alone. `DRY_RUN = True` by default: every
+  read against the testnet API is real, but no order is placed until
+  this is explicitly turned off. Added `python-binance` (for correct
+  HMAC request signing — not hand-rolled). Real simplification worth
+  knowing: the "3 sleeves" are this bot's own bookkeeping, not a real
+  segregation of funds — Binance Futures pools all margin into one
+  account balance. Going live with real money is a separate, explicit,
+  not-yet-made decision. See `live/README.md`.
+- **GitHub Actions cannot run this — confirmed directly, not a
+  workaround-able bug.** The first real run failed every symbol with
+  `HTTP 451` (Unavailable For Legal Reasons), including the plain public
+  market-data fetch: Binance blocks GitHub Actions runners' IP range
+  (Azure-hosted, like most cloud/datacenter ranges) from its API
+  entirely, testnet or not. `.github/workflows/live_trader.yml`'s
+  scheduled trigger was removed (kept manual-only) so it doesn't spam
+  daily failure emails for something that structurally can't succeed
+  from that host. Automation moved to local Windows Task Scheduler
+  instead (same pattern as the paper trader), which uses a residential
+  IP Binance doesn't block. A cheap always-on device on the home network
+  (e.g. an old phone via Termux) was discussed as a future upgrade over
+  keeping a laptop on, not yet set up.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined
