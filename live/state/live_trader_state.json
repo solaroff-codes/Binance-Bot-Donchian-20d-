@@ -1,0 +1,19 @@
+{
+  "symbols": {
+    "BTC": {
+      "equity": 333.3333333333333,
+      "open_trade": null,
+      "last_processed_date": null
+    },
+    "SOL": {
+      "equity": 333.3333333333333,
+      "open_trade": null,
+      "last_processed_date": null
+    },
+    "BNB": {
+      "equity": 333.3333333333333,
+      "open_trade": null,
+      "last_processed_date": null
+    }
+  }
+}
