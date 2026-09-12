@@ -9,6 +9,7 @@ from backtest.engine import (
     compute_metrics,
     simulate_trades,
     simulate_trades_compounding,
+    simulate_trades_with_contributions,
 )
 from strategy.signals import Signal
 
@@ -379,6 +380,53 @@ def test_simulate_trades_compounding_fraction_zero_matches_fixed_sizing():
     # only -- both trades should use the same 40-unit size (10,000*2%/$5),
     # unlike full compounding (fraction=1.0) where trade 2 got 41 units.
     assert [t.contracts for t in trades] == [40, 40]
+
+
+def test_simulate_trades_with_contributions_grows_sizing_base_after_deposit():
+    dates = pd.date_range("2026-01-01", periods=4, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "high": [100, 108, 111, 113],
+            "low": [95, 97, 99, 104],
+            "close": [100, 103, 110, 109],
+        }
+    )
+    sig1 = _signal(entry_ts=dates[0], entry_price=100, stop_price=95, target_price=110)
+    sig2 = _signal(entry_ts=dates[2], entry_price=110, stop_price=105, target_price=120)
+    # $5,000 deposited between the two trades -- sig1 (entry day 0) must
+    # not see it; sig2 (entry day 2) must.
+    contributions = [(dates[1], 5_000.0)]
+
+    trades = simulate_trades_with_contributions(
+        df, [sig1, sig2], multiplier=1, starting_capital=10_000, risk_pct_per_trade=0.02,
+        contributions=contributions,
+    )
+    t1, t2 = trades
+
+    # Trade 1: unaffected by a deposit that arrives after it opened --
+    # same 40 units as plain compounding with no contributions.
+    assert t1.contracts == 40
+    assert t1.pnl_dollars == pytest.approx(400.0)
+
+    # Trade 2: sizes off $10,000 (starting) + $5,000 (deposited) + $400
+    # (realized P&L) = $15,400 -> 2% = $308 / $5 risk = 61 units, not the
+    # 41 units plain compounding alone would have given.
+    assert t2.contracts == 61
+    assert t2.pnl_dollars == pytest.approx(-305.0)
+
+
+def test_simulate_trades_with_contributions_matches_plain_compounding_when_empty():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 106, 106], "low": [98, 100, 100], "close": [100, 105, 105]}
+    )
+    signal = _signal(entry_ts=dates[0], stop_price=99, target_price=105)
+
+    with_none = simulate_trades_with_contributions(df, [signal], multiplier=100, starting_capital=10_000, risk_pct_per_trade=0.02)
+    plain = simulate_trades_compounding(df, [signal], multiplier=100, starting_capital=10_000, risk_pct_per_trade=0.02)
+    assert with_none[0].contracts == plain[0].contracts
+    assert with_none[0].pnl_dollars == pytest.approx(plain[0].pnl_dollars)
 
 
 def test_simulate_trades_compounding_skips_when_equity_cannot_size_even_one_unit():

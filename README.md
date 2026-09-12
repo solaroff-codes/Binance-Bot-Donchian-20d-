@@ -397,6 +397,24 @@ genuine train/test split were added:
   ten coins tested; the real lever for more return within the chosen risk
   framework is contributing capital, not a different coin combination.
   See `backtest/README.md`'s "Expanding the coin universe" section.
+- **Simulated the actual plan: $300/month ($100/coin/month) contributed
+  for 6 years on top of the $1,000 start, same 3% risk / compounding
+  setup.** Added `backtest/engine.py`'s
+  `simulate_trades_with_contributions()` — every trade sizes off starting
+  capital plus deposits made by that point plus compounding P&L, the way
+  a real account topping itself up would. Result: $22,600 total put in
+  (initial + deposits) grows to **$31,351**, of which **$8,751 is actual
+  trading profit** — the rest is just the deposits themselves, a
+  distinction that matters since comparing the final balance to the
+  original $1,000 alone would overstate what the strategy did. Reported
+  two drawdown numbers because only one is honest here: the raw dollar
+  drawdown ($1,040) is artificially small because monthly deposits prop
+  the balance up mid-decline; the cost-basis-adjusted figure (balance
+  measured against money-actually-invested-so-far, so a deposit is never
+  mistaken for a recovery) is **16.3%**, consistent with the
+  no-contribution version's own 15.7% — confirming contributions don't
+  change the strategy's underlying risk profile, as expected. See
+  `backtest/README.md`'s "Simulating the actual plan" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

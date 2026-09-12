@@ -409,6 +409,138 @@ def simulate_trades_compounding(
     return trades
 
 
+def simulate_trades_with_contributions(
+    df: pd.DataFrame,
+    signals: list[SignalLike],
+    multiplier: float = 1.0,
+    high_col: str = "high",
+    low_col: str = "low",
+    timestamp_col: str = "date",
+    starting_capital: float = 10_000.0,
+    risk_pct_per_trade: float = 0.01,
+    cost_model: CostModel | None = None,
+    skip_log: list | None = None,
+    compounding_fraction: float = 1.0,
+    contributions: list[tuple] | None = None,
+) -> list[Trade]:
+    """
+    Same as simulate_trades_compounding(), plus scheduled cash deposits:
+    contributions is a list of (date, amount) pairs (any date-like object
+    comparable via pd.Timestamp) -- e.g. the 1st of every month for 6
+    years. Each trade sizes off starting_capital, plus every contribution
+    whose date is on or before that trade's entry, plus
+    compounding_fraction * realized P&L so far. Contributed cash is never
+    itself "at risk" beyond what the risk_pct_per_trade formula already
+    implies -- it just grows the base the next trade's position size is
+    computed from, exactly like a real account depositing more cash would.
+
+    Reports contributed-to-date via skip_log entries the same way
+    simulate_trades_compounding does for undersized trades; the caller is
+    expected to separately track total contributions over the period
+    (e.g. len(contributions) * amount, or sum(a for _, a in contributions))
+    for building an equity curve that distinguishes deposits from
+    trading profit -- this function only affects position sizing, it
+    doesn't return a running balance series itself.
+    """
+    out = df.reset_index(drop=True)
+    timestamps = out[timestamp_col]
+    ordered_signals = sorted(signals, key=lambda s: s.entry_ts)
+    ordered_contributions = sorted(contributions or [], key=lambda c: pd.Timestamp(c[0]))
+
+    trades: list[Trade] = []
+    cumulative_pnl = 0.0
+    blocked_until_date = None
+    position_open_indefinitely = False
+
+    def _contributed_by(ts) -> float:
+        cutoff = pd.Timestamp(ts)
+        return sum(amount for date, amount in ordered_contributions if pd.Timestamp(date) <= cutoff)
+
+    for signal in ordered_signals:
+        if position_open_indefinitely:
+            continue
+        if blocked_until_date is not None and pd.Timestamp(signal.entry_ts).date() < blocked_until_date:
+            continue
+
+        risk_points = abs(signal.entry_price - signal.stop_price)
+        future = out[timestamps > signal.entry_ts]
+
+        exit_ts = None
+        exit_price = None
+        outcome: Literal["win", "loss", "open"] = "open"
+
+        for _, bar in future.iterrows():
+            hit_stop = (
+                bar[low_col] <= signal.stop_price
+                if signal.direction == "long"
+                else bar[high_col] >= signal.stop_price
+            )
+            hit_target = (
+                bar[high_col] >= signal.target_price
+                if signal.direction == "long"
+                else bar[low_col] <= signal.target_price
+            )
+            if hit_stop:
+                exit_ts, exit_price, outcome = bar[timestamp_col], signal.stop_price, "loss"
+                break
+            if hit_target:
+                exit_ts, exit_price, outcome = bar[timestamp_col], signal.target_price, "win"
+                break
+
+        if outcome == "open":
+            pnl_points = None
+            r_multiple = None
+            pnl_dollars = None
+            contracts = 1
+        else:
+            signed = 1 if signal.direction == "long" else -1
+            pnl_points = signed * (exit_price - signal.entry_price)
+            r_multiple = pnl_points / risk_points if risk_points else None
+
+            sizing_equity = starting_capital + _contributed_by(signal.entry_ts) + compounding_fraction * cumulative_pnl
+            sizer = PositionSizer(account_size=sizing_equity, risk_pct_per_trade=risk_pct_per_trade)
+            sized = sized_and_costed_pnl(
+                signal.direction, signal.entry_price, exit_price, risk_points,
+                multiplier, cost_model, sizer,
+            )
+            if sized is None:
+                if skip_log is not None:
+                    skip_log.append({
+                        "entry_ts": signal.entry_ts, "reason": "undersized",
+                        "risk_points": risk_points,
+                        "risk_dollars_at_1_contract": risk_points * multiplier,
+                        "equity_at_time": sizing_equity,
+                    })
+                continue
+            pnl_dollars, contracts = sized
+            cumulative_pnl += pnl_dollars
+
+        trades.append(
+            Trade(
+                entry_ts=signal.entry_ts,
+                exit_ts=exit_ts,
+                direction=signal.direction,
+                entry_price=signal.entry_price,
+                stop_price=signal.stop_price,
+                target_price=signal.target_price,
+                exit_price=exit_price,
+                outcome=outcome,
+                risk_points=risk_points,
+                pnl_points=pnl_points,
+                r_multiple=r_multiple,
+                pnl_dollars=pnl_dollars,
+                contracts=contracts,
+            )
+        )
+
+        if outcome == "open":
+            position_open_indefinitely = True
+        else:
+            blocked_until_date = pd.Timestamp(exit_ts).date()
+
+    return trades
+
+
 def compute_drawdown_curve(trades: list[Trade]) -> dict:
     """
     The full drawdown profile from ONE continuous equity curve — trades

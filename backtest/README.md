@@ -1703,3 +1703,47 @@ coins tested in this project (BTC/ETH/SOL/BNB/XRP/LTC/ADA/DOGE/LINK/TRX).
 Within the 3-5% risk / compounding framework already chosen, the actual
 lever for higher absolute returns over time is exactly what was already
 decided: contributing more capital, not a different coin combination.
+
+## Simulating the actual plan: $300/month contributions for 6 years
+
+The chosen path forward: BTC+SOL+BNB, 3% risk, full compounding, plus
+$300/month ($100/coin/month) added for 72 consecutive months on top of
+the $1,000 starting capital. `backtest/engine.py`'s
+`simulate_trades_with_contributions()` (new this session) sizes every
+trade off starting capital, plus every contribution made on or before
+that trade's entry date, plus realized compounding P&L — a deposit grows
+the next trade's position size exactly the way a real account topping up
+its balance would.
+
+| | |
+|---|---|
+| Initial capital | $1,000.00 |
+| Total contributed | $21,600.00 ($300/month x 72 months) |
+| **Total capital put in** | **$22,600.00** |
+| **Final balance** | **$31,351.29** |
+| Net trading profit | $8,751.29 |
+| Return on capital put in | +38.7% |
+
+**$8,751 of the final $31,351 is actual trading profit — the rest
+($22,600) is just money that was deposited.** That distinction matters:
+a return figure on a growing-contribution account only means something
+measured against what was actually put in, not against the $1,000
+starting point (comparing the final balance to $1,000 alone would
+overstate the strategy's own contribution by counting 21 months of
+deposits as if the strategy had generated them).
+
+**Two drawdown numbers are reported, and only one of them is honest for
+this scenario**: the raw dollar drawdown on the account's literal balance
+is $1,040 — but that figure is artificially small, because a monthly
+deposit arriving mid-decline props the balance back up, which isn't the
+market recovering, it's new cash arriving. The cost-basis-adjusted number
+— balance measured against money-actually-invested-so-far at each
+point, so a deposit is never mistaken for a recovery — is **16.3%**,
+worst in October 2024. That's consistent with the no-contribution
+version's own 15.7% drawdown (backtest/README.md's earlier sections) —
+the underlying strategy's risk profile is unchanged by adding
+contributions, exactly as expected, since deposits don't change how any
+individual trade is stopped out.
+
+`scripts/run_dca_contribution_test.py` reproduces this and writes the
+full daily balance curve to `backtest/output/dca_contribution_test.csv`.
