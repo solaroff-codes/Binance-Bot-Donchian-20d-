@@ -1403,3 +1403,110 @@ with half-Kelly is the honest answer if more absolute growth matters more
 than the smoothest ride. All of the above is on the same three-asset,
 fully-stress-tested portfolio — the strategy itself hasn't changed, only
 how much of it is deployed.
+
+## Trading this on leveraged futures instead of spot
+
+The chosen configuration (3% risk, full compounding) was originally
+tested as spot trading. `scripts/run_leverage_liquidation_test.py` tests
+the identical strategy on leveraged perpetual futures at 3x, 5x, and 10x.
+
+**The modeling point that matters before reading any number below:**
+leverage does not, by itself, change a risk-based-sized position's P&L.
+Position size here is already computed from "risk 3% of equity, given the
+stop distance" — leverage only changes how much collateral (margin) is
+required to hold that already-determined position, and where the
+exchange's forced-liquidation price sits. The real question leverage
+introduces is whether the exchange can force-close a position, at
+whatever price consumes the posted margin, *before* the strategy's own
+2x-ATR stop-loss would have executed. If the strategy's stop is tighter
+than the leverage-driven liquidation buffer, leverage changes nothing
+about performance — it's purely a capital-efficiency question. If the
+stop is wider, some trades get cut off early at a price the strategy
+never chose.
+
+Liquidation buffer approximation used (standard retail-tier formula,
+isolated margin, 0.5% maintenance margin rate — a commonly-cited retail
+bracket figure, not fetched from Binance's live bracket table, so treat
+as directionally right rather than exact): roughly 33% of price at 3x,
+20% at 5x, 10% at 10x.
+
+### How often the strategy's own stop is wider than the buffer
+
+| Symbol | Stop distance (median) | 3x liquidation-bound | 5x liquidation-bound | 10x liquidation-bound |
+|---|---|---|---|---|
+| BTC | 7.6% of price | 0.0% | 0.9% | 25.4% |
+| SOL | 14.6% of price | 4.2% | 21.0% | 90.8% |
+| BNB | 9.2% of price | 1.4% | 2.9% | 48.8% |
+
+**SOL is the outlier — its stops are typically twice as wide as BTC's**
+(higher volatility means a bigger ATR relative to price), so at 10x
+leverage over 90% of its signals would have their exit forced by
+liquidation rather than the strategy's own logic. This is a coin-specific
+risk, not a portfolio-wide constant — a leverage level safe for BTC is
+not automatically safe for SOL.
+
+### Full portfolio result at each leverage level
+
+| | Final ($10k start) | CAGR | Max drawdown | Win rate | Liquidation-bound trades |
+|---|---|---|---|---|---|
+| Spot (baseline) | $20,086 | 12.33% | 15.73% | 51.6% | — |
+| 3x leverage | $20,173 | 12.41% | 15.78% | 51.5% | 13 |
+| 5x leverage | $18,865 | 11.16% | 15.28% | 50.0% | 58 |
+| 10x leverage | $19,042 | 11.33% | 17.32% | **43.6%** | 376 |
+
+**3x leverage is effectively free** — 13 liquidation events out of
+roughly 675 combined signals, performance indistinguishable from spot.
+The practical benefit is capital efficiency, not return: the same
+backtested result requires only a third of the collateral locked up as
+margin compared to spot.
+
+**5x leverage introduces a real but modest drag** — CAGR drops about a
+point (12.33% → 11.16%) as some trades that would have recovered under
+the strategy's own wider stop get closed early instead.
+
+**10x leverage changes the character of the strategy, even though the
+final CAGR looks deceptively close to spot's.** Win rate drops sharply
+(51.6% → 43.6%) — a large fraction of would-be winners get forced closed
+before recovering. The reason CAGR doesn't collapse along with win rate:
+because position size is fixed by the *original* risk calculation, a
+liquidation-forced exit (which triggers *closer* to entry than the
+intended stop, by construction of the buffer math) realizes a **smaller**
+dollar loss than the strategy's own planned 3% risk would have — so each
+individual liquidation event is capped, but there are far more of them,
+and many are trades that the strategy itself would have turned into
+winners. Lower win rate and lower profit factor (1.46 → 1.32) is a
+materially worse-quality strategy than what was validated, even though
+total return happens to land in a similar place over this particular
+6-year window — that similarity is not something to rely on going
+forward.
+
+### What isn't modeled here
+
+**Funding rate** — perpetual futures' periodic payment between long and
+short holders, exchanged every 8 hours, is a real, recurring cost this
+analysis has no historical data for (`data/binance_connector.py` only
+pulls spot klines; a futures funding-rate connector doesn't exist yet).
+Given this strategy's ~15-day average holding period and roughly 64%
+long / 36% short signal mix, funding could plausibly add a real, if
+modest, drag over time — not estimated here rather than guessed at.
+**Binance's exact tiered maintenance-margin brackets** (which increase
+for larger position sizes) aren't modeled either — irrelevant at this
+account size, but this isn't literally Binance's own formula.
+
+### The practical takeaway
+
+**3x leverage is a reasonable, low-risk way to free up capital
+efficiency on this exact strategy — the backtest shows no meaningful
+downside.** 5x is a real, quantified tradeoff (roughly a point of CAGR)
+rather than a red flag. 10x is where this stops being "the same
+strategy" — not because it blows up outright in this particular 6-year
+window, but because it silently degrades win rate and profit factor by
+cutting winners short, and does so worse on SOL than BTC specifically. A
+middle path worth knowing about: the leverage *tier* an exchange offers
+doesn't have to equal the leverage actually *used* — posting more margin
+than the required minimum (e.g. choosing 10x tier access but funding the
+position at a 3-5x margin ratio) removes the liquidation risk shown here
+entirely, at the cost of tying up more collateral, which is a real,
+practical way to get some of leverage's capital-efficiency benefit
+without its risk — not tested here, but the mechanism this section's own
+numbers point toward.

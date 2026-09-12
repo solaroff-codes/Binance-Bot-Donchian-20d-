@@ -314,6 +314,23 @@ genuine train/test split were added:
   `paper/README.md` for the exact setup, how to automate it, and how to
   switch to a different point on the risk/compounding tradeoff. Nothing
   else in this project has reached this stage.
+- **Tested the same strategy on leveraged futures instead of spot (3x,
+  5x, 10x) — 3x is effectively free, 10x quietly degrades the strategy.**
+  The key modeling point: leverage doesn't change a risk-based position's
+  P&L by itself, only whether the exchange's liquidation price sits
+  closer to entry than the strategy's own 2x-ATR stop. At 3x, almost no
+  trades are liquidation-bound (13 out of ~675 signals) — performance is
+  indistinguishable from spot, the only benefit is freeing up collateral.
+  At 5x, a real but modest drag (CAGR 12.33% → 11.16%). At 10x, win rate
+  drops sharply (51.6% → 43.6%) as trades that would have recovered get
+  force-closed early — total return looks deceptively close to spot's
+  over this window, but that's not something to rely on going forward.
+  **SOL is far more leverage-sensitive than BTC** (median stop distance
+  14.6% of price vs. BTC's 7.6%) — 90.8% of its signals are
+  liquidation-bound at 10x vs. BTC's 25.4%. Funding rate (a real,
+  recurring perpetual-futures cost) isn't modeled — no historical data
+  for it exists in this project yet. See `backtest/README.md`'s "Trading
+  this on leveraged futures instead of spot" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined
