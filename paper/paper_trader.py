@@ -6,16 +6,35 @@ Donchian" and "Increasing profit on the 1:1.5 version" sections) against
 live Binance market data, with zero real money or API credentials
 involved.
 
-Configuration: $10,000 total, split three ways ($3,333.33 per sleeve),
-3% risk per trade, full compounding (compounding_fraction=1.0) -- the
-"balanced" configuration chosen after scaling risk through a conventional
-1-5% band and comparing against buy-and-hold's own return/drawdown
-profile (backtest/README.md's "Is 25-28% over 6 years actually good?"
-section): ~12.3% backtested CAGR, ~15.7% max drawdown, a real
-risk-preference choice, not the only defensible one -- see that section
-for the 5%/half-Kelly and 5%/full-compounding alternatives if a
+Configuration: $1,000 total (the user's real starting capital -- not the
+$10,000 reference account used throughout most of this project's
+backtesting, rescaled here since crypto's fractional position sizing
+makes the two proportionally identical, confirmed directly rather than
+assumed), split three ways ($333.33 per sleeve), 3% risk per trade, full
+compounding (compounding_fraction=1.0) -- the "balanced" configuration
+chosen after scaling risk through a conventional 1-5% band and comparing
+against buy-and-hold's own return/drawdown profile (backtest/README.md's
+"Is 25-28% over 6 years actually good?" section): ~12.3% backtested CAGR,
+~15.6% max drawdown ($1,000 -> ~$2,006 over 6 years in the backtest), a
+real risk-preference choice, not the only defensible one -- see that
+section for the 5%/half-Kelly (~17.3% CAGR, ~24.0% drawdown) and
+5%/full-compounding (~19.9% CAGR, ~36.1% drawdown) alternatives if a
 different point on the tradeoff is wanted. Change RISK_PCT and
 COMPOUNDING_FRACTION below to switch.
+
+Intended execution venue: leveraged futures (not spot), at 3x leverage
+-- chosen after backtest/README.md's "Trading this on leveraged futures
+instead of spot" section found 3x leverage is effectively free (13
+liquidation events out of ~675 signals across all three symbols,
+performance indistinguishable from spot) and 5x/10x introduce real,
+quantified degradation. This simulation's numbers do not change based on
+leverage choice (position size here is risk-based, not leverage-based --
+see that section for why), so no code here models leverage explicitly;
+3x leverage is a statement about how much collateral to actually post on
+the futures exchange when executing this for real, not something this
+script computes. Do not use higher leverage than 3x on this configuration
+without re-reading that section first -- SOL in particular is far more
+liquidation-sensitive than BTC or BNB at higher leverage.
 
 This is pure simulation ("Option A"): no Binance account, no API key, no
 order ever placed anywhere. Each run fetches fresh PUBLIC daily OHLCV
@@ -73,7 +92,7 @@ from strategy.technical_signals import generate_donchian_breakout_signals
 
 SYMBOLS = ["BTC", "SOL", "BNB"]  # the fully stress-tested 3-asset portfolio
 TIMEFRAME = "1 day"
-ACCOUNT_SIZE = 10_000.0
+ACCOUNT_SIZE = 1_000.0  # the user's real starting capital -- see module docstring
 PER_ASSET_CAPITAL = ACCOUNT_SIZE / len(SYMBOLS)
 # The chosen configuration -- see this file's module docstring for how it
 # was picked and what the alternatives are.

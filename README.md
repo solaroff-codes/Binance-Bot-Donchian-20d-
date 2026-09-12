@@ -331,6 +331,21 @@ genuine train/test split were added:
   recurring perpetual-futures cost) isn't modeled — no historical data
   for it exists in this project yet. See `backtest/README.md`'s "Trading
   this on leveraged futures instead of spot" section.
+- **The real starting account is $1,000, not the $10,000 used as this
+  project's backtesting reference throughout — confirmed directly that
+  nothing about the strategy needs to change.** Crypto's fractional
+  position sizing (down to 0.0001 of a coin) means a $1,000 account
+  requires no leverage at all just to hold valid position sizes — checked
+  directly: required notional per trade tops out around $290 even on a
+  $333 sleeve, zero trades ever skipped as too small. Same percentage
+  performance as the $10k backtest, just scaled down: $1,000 → ~$2,006
+  over 6 years at the chosen 3% risk / full compounding configuration.
+  Decided to trade this via leveraged futures at 3x (for account-access
+  reasons, not because leverage was needed to make the sizing work) —
+  `paper/paper_trader.py` now runs on the real $1,000 figure. 5%
+  risk remains available as a more aggressive option (~$2,964 full
+  compounding / ~$2,607 half-Kelly over the same 6 years) if more growth
+  is wanted later.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

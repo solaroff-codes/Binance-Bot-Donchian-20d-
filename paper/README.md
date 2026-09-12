@@ -9,18 +9,36 @@ profit on the 1:1.5 version" sections), with the risk/compounding level
 chosen after scaling through a conventional 1-5% band and weighing the
 result against buy-and-hold's own return/drawdown profile (`backtest/
 README.md`'s "Is 25-28% over 6 years actually good?" section). Backtested
-~12.3% CAGR, ~15.7% max drawdown. Nothing else — not the trendline
-cascade, not the original Wyckoff/Fib/Elliott confluence strategy, not
-ETH or XRP (both checked, both failed the same stress test BTC/SOL/BNB
-passed), not any futures instrument — has been validated enough to
-belong here.
+~12.3% CAGR, ~15.6% max drawdown on the user's real $1,000 starting
+capital. Nothing else — not the trendline cascade, not the original
+Wyckoff/Fib/Elliott confluence strategy, not ETH or XRP (both checked,
+both failed the same stress test BTC/SOL/BNB passed), not any futures
+instrument — has been validated enough to belong here.
 
-This supersedes an earlier BTC-only, 1% risk, fixed-sizing version of
-this paper trader. That version's state/output files
-(`btc_donchian_paper_state.json` / `btc_donchian_paper_trades.csv`), if
-present from before, are left untouched but no longer updated — the
-current script writes to `portfolio_paper_state.json` /
-`portfolio_paper_trades.csv` instead.
+**Intended execution venue: leveraged futures at 3x, not spot** — chosen
+after `backtest/README.md`'s "Trading this on leveraged futures instead
+of spot" section found 3x leverage effectively free (near-zero
+liquidation risk, performance indistinguishable from spot) while 5x/10x
+introduce real, quantified degradation, worse on SOL than BTC/BNB
+specifically. This simulation's own numbers don't change with leverage
+(position sizing here is risk-based, not leverage-based — see that
+section for why) — 3x is a statement about how much collateral to post
+when executing this for real, not something this script models directly.
+Do not use higher leverage than 3x on this configuration without
+re-reading that section first.
+
+This supersedes two earlier versions of this paper trader: a BTC-only,
+1% risk, fixed-sizing version, and a brief $10,000-account version of the
+current 3-asset/3%/compounding configuration (the $10,000 figure was this
+project's backtesting reference account throughout, not the user's actual
+capital — corrected to the real $1,000 once that came up). Both earlier
+versions' state/output files (`btc_donchian_paper_state.json` /
+`btc_donchian_paper_trades.csv`), if present from before, are left
+untouched but no longer updated; the $10,000-account run's
+`portfolio_paper_state.json` was reset (deleted, not archived — it was
+one day old, zero trades logged, pure simulation state, nothing lost) so
+the paper account restarts cleanly at the real $1,000 baseline rather
+than carrying forward a fictional balance.
 
 ## `paper_trader.py` — simulated paper trading (no account, no API key)
 
@@ -55,7 +73,7 @@ one symbol, so there's nothing new to evaluate. Running it more than once
 on the same day is harmless (it's a pure recomputation), it just won't
 have anything new to report.
 
-First run starts a fresh $10,000 total portfolio ($3,333.33 per sleeve),
+First run starts a fresh $1,000 total portfolio ($333.33 per sleeve),
 flat on all three, as of the latest daily bar all three symbols have in
 common, and records that date to
 `paper/state/portfolio_paper_state.json` (gitignored — machine-local
@@ -72,11 +90,13 @@ symbol, updated each run): `paper/output/portfolio_paper_trades.csv`
 (gitignored).
 
 Configuration — `paper/paper_trader.py`'s module constants:
-`SYMBOLS = ["BTC", "SOL", "BNB"]`, `ACCOUNT_SIZE = 10_000`,
-`RISK_PCT = 0.03`, `COMPOUNDING_FRACTION = 1.0` (0.0 = fixed sizing,
-1.0 = full reinvestment, 0.5 = "half-Kelly" — see `backtest/README.md`'s
-risk-scaling section for the alternatives this was chosen over, and their
-own backtested return/drawdown numbers, before changing these).
+`SYMBOLS = ["BTC", "SOL", "BNB"]`, `ACCOUNT_SIZE = 1_000` (the user's real
+starting capital), `RISK_PCT = 0.03`, `COMPOUNDING_FRACTION = 1.0`
+(0.0 = fixed sizing, 1.0 = full reinvestment, 0.5 = "half-Kelly" — see
+`backtest/README.md`'s risk-scaling section for the alternatives this was
+chosen over — at $1,000, 5%/full-compounding backtests to ~19.9% CAGR
+with a much rougher ~36.1% max drawdown, 5%/half-Kelly to ~17.3% CAGR
+with ~24.0% drawdown — before changing these).
 
 ### Automating it (Windows Task Scheduler)
 
