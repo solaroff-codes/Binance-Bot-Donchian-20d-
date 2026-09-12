@@ -41,6 +41,10 @@ confluence rule, and a multi-timeframe trendline bounce/break cascade
   the validated BTC+SOL+BNB Donchian breakout portfolio (3% risk,
   compounding — see Status below) against live public Binance data with
   no account or API key; see `paper/README.md`.
+- `live/` — Binance Futures **Testnet** execution layer (real order
+  placement, fake funds) for the same validated portfolio, automated via
+  GitHub Actions; see `live/README.md`. `DRY_RUN` defaults on; going live
+  with real money is a separate, later decision, not built.
 - `scripts/` — runnable entry points: `fetch_all_instruments.py`,
   `fetch_crypto_data.py`, `build_continuous_contracts.py`,
   `run_strategy.py`, `run_backtest.py`, `run_trendline_backtest.py`,
@@ -433,6 +437,21 @@ genuine train/test split were added:
   between trades, so rebalancing is a free internal transfer, not a
   taxable spot trade — matches how this project already models it. See
   `backtest/README.md`'s "A small, genuinely free improvement" section.
+- **Automated execution: a Binance Futures Testnet trading bot, scheduled
+  via GitHub Actions.** `live/live_trader.py` runs the same validated
+  signal logic as `paper/paper_trader.py`, but places real (testnet, fake
+  funds) orders — market entry plus `STOP_MARKET`/`TAKE_PROFIT_MARKET`
+  exits, reconciled daily against the exchange's own position/order state
+  rather than trusted from a local file alone. `DRY_RUN = True` by
+  default: every read against the testnet API is real, but no order is
+  placed until this is explicitly turned off. Added `python-binance` (for
+  correct HMAC request signing — not hand-rolled) and
+  `.github/workflows/live_trader.yml` (daily cron, commits the updated
+  state/trade-log back to the repo since Actions runners are ephemeral).
+  Real simplification worth knowing: the "3 sleeves" are this bot's own
+  bookkeeping, not a real segregation of funds — Binance Futures pools
+  all margin into one account balance. Going live with real money is a
+  separate, explicit, not-yet-made decision. See `live/README.md`.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

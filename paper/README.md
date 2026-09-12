@@ -122,12 +122,12 @@ with ~24.0% drawdown — before changing these).
    log, or `paper/output/paper_trader.log` for the full run history
    (both gitignored — machine-local, not project history).
 
-## Testnet (real order placement, still no real money) — not built yet
+## Testnet (real order placement, still no real money) — built, see `live/`
 
-A separate, later option if you want to test actual order mechanics
-(latency, real fills, API auth) rather than pure simulation: a Binance
-**Spot Testnet** account (testnet.binance.vision — free, fake funds, no
-KYC, fully separate from any real Binance account) and a testnet API
-key/secret, supplied via a local `.env` file (gitignored) rather than
-ever pasted into a chat or committed. Not built until/unless you decide
-Option A's simulation isn't enough on its own.
+The separate, later option mentioned here previously — testing actual
+order mechanics rather than pure simulation — is now built: see
+`live/README.md`. It uses Binance **Futures Testnet** (not the Spot
+Testnet originally described here, since the validated configuration
+trades futures at 3x leverage, not spot) and reuses this module's exact
+signal-generation logic, adding a real (testnet) order-placement layer
+on top.

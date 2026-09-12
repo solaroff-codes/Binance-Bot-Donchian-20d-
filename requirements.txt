@@ -9,5 +9,10 @@ numpy
 # Config
 PyYAML
 
+# Binance Futures order placement (live/ -- HMAC request signing, testnet
+# support). Not needed for data/binance_connector.py's public klines, which
+# uses plain urllib deliberately (no auth needed for public market data).
+python-binance
+
 # Testing (used by indicators/strategy in later sessions)
 pytest
