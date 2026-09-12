@@ -1747,3 +1747,48 @@ individual trade is stopped out.
 
 `scripts/run_dca_contribution_test.py` reproduces this and writes the
 full daily balance curve to `backtest/output/dca_contribution_test.csv`.
+
+## A small, genuinely free improvement: periodic rebalancing
+
+Asked "just for fun" whether periodically rebalancing capital across the
+three sleeves — selling down whichever grew fastest, topping up the
+laggards back to equal thirds, the standard portfolio technique — beats
+letting each sleeve compound independently forever, the way the
+validated configuration currently works. `backtest/engine.py`'s
+`simulate_portfolio_with_rebalancing()` (new this session) runs all
+three sleeves on one shared timeline so a rebalance event can pool and
+redistribute equity across them. Deliberately tested at four cadences
+(monthly, quarterly, semi-annual, annual), not just whichever one might
+look best — this project has learned the hard way what happens when only
+the best-looking cell of a small grid gets reported.
+
+| Cadence | Final ($1,000 start) | CAGR | Max drawdown |
+|---|---|---|---|
+| No rebalancing (current) | $2,006 | 12.31% | 15.56% |
+| Monthly | $2,075 | 12.94% | 16.24% |
+| **Quarterly** | **$2,081** | **12.99%** | **15.81%** |
+| Semi-annual | $2,054 | 12.75% | 16.05% |
+| Annual | $2,052 | 12.73% | 15.70% |
+
+**Every cadence tested improved on no rebalancing, by a similar, modest
+amount (CAGR +0.4 to +0.7 points), with essentially unchanged
+drawdown.** That the improvement shows up across all four choices tried
+— not just one lucky pick — is what makes this a credible, real effect
+rather than the kind of single-best-cell result this project has
+repeatedly learned not to trust: rebalancing mechanically forces selling
+whatever just ran hardest and buying whatever lagged, capturing a small
+amount of cross-sleeve mean reversion that compounding alone leaves on
+the table. Quarterly happens to test best here, but given how close all
+four results sit together, that's a reasonable practical default (a
+common real-world cadence, easy to actually execute) rather than a
+claim that quarterly is provably optimal.
+
+**Caveat worth keeping**: no transaction cost is charged for the
+rebalancing moves themselves, which is only realistic if each sleeve's
+idle balance between trades is held in a stable unit (USDT) — moving
+USDT between sleeves is a free internal transfer, not a taxable spot
+trade the way selling one coin to buy another would be. That matches how
+this project already models sleeve equity (see
+`data/binance_connector.py`), but would need revisiting if this were ever
+implemented against real coin holdings instead of cash sleeves.
+`scripts/run_rebalancing_test.py` reproduces this.

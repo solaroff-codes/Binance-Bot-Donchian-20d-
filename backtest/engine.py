@@ -541,6 +541,128 @@ def simulate_trades_with_contributions(
     return trades
 
 
+def simulate_portfolio_with_rebalancing(
+    assets: dict[str, tuple[pd.DataFrame, float, list[SignalLike]]],
+    starting_capital_per_asset: float,
+    risk_pct_per_trade: float,
+    rebalance_dates: list,
+    high_col: str = "high",
+    low_col: str = "low",
+    timestamp_col: str = "date",
+    cost_model: CostModel | None = None,
+) -> dict[str, list[Trade]]:
+    """
+    Multiple sleeves (assets = {symbol: (df, multiplier, signals)}), each
+    compounding independently (always full compounding — this function
+    exists specifically to test periodic rebalancing on top of the
+    already-chosen full-compounding configuration, not to generalize
+    every knob), EXCEPT that at each date in rebalance_dates, every
+    sleeve's current equity is pooled and split back to equal shares —
+    simulating selling down whichever sleeve grew fastest and topping up
+    the laggards, the standard periodic-rebalancing portfolio technique.
+
+    Unlike every other simulate_* function here, this one drives multiple
+    symbols' signals against their own price data on ONE shared timeline
+    (rebalancing only makes sense as a cross-sleeve event), so it can't
+    reuse the single-asset walk-forward functions directly — the stop/
+    target walk-forward logic is the same as simulate_trades_compounding's,
+    just interleaved with rebalance events in chronological order.
+
+    Returns {symbol: [Trade, ...]} exactly like the single-asset
+    functions, so callers build equity curves the same way afterward.
+    """
+    prepped = {}
+    for symbol, (df, multiplier, signals) in assets.items():
+        out = df.reset_index(drop=True)
+        prepped[symbol] = {
+            "out": out, "timestamps": out[timestamp_col], "multiplier": multiplier,
+            "signals": sorted(signals, key=lambda s: s.entry_ts),
+        }
+
+    equity = {symbol: starting_capital_per_asset for symbol in assets}
+    blocked_until_date = {symbol: None for symbol in assets}
+    position_open_indefinitely = {symbol: False for symbol in assets}
+    trades_out: dict[str, list[Trade]] = {symbol: [] for symbol in assets}
+
+    # One shared chronological timeline: every signal (tagged by symbol)
+    # plus every rebalance date. Rebalances are ordered before same-day
+    # signals (arbitrary but consistent tie-break) via the 0/1 sort key.
+    events = [(pd.Timestamp(d), 0, None, None) for d in rebalance_dates]
+    for symbol, p in prepped.items():
+        events += [(pd.Timestamp(s.entry_ts), 1, symbol, s) for s in p["signals"]]
+    events.sort(key=lambda e: (e[0], e[1]))
+
+    for _, kind, symbol, signal in events:
+        if kind == 0:
+            total = sum(equity.values())
+            share = total / len(equity)
+            for s in equity:
+                equity[s] = share
+            continue
+
+        if position_open_indefinitely[symbol]:
+            continue
+        if blocked_until_date[symbol] is not None and pd.Timestamp(signal.entry_ts).date() < blocked_until_date[symbol]:
+            continue
+
+        p = prepped[symbol]
+        out, timestamps, multiplier = p["out"], p["timestamps"], p["multiplier"]
+        risk_points = abs(signal.entry_price - signal.stop_price)
+        future = out[timestamps > signal.entry_ts]
+
+        exit_ts = None
+        exit_price = None
+        outcome: Literal["win", "loss", "open"] = "open"
+        for _, bar in future.iterrows():
+            hit_stop = (
+                bar[low_col] <= signal.stop_price if signal.direction == "long" else bar[high_col] >= signal.stop_price
+            )
+            hit_target = (
+                bar[high_col] >= signal.target_price if signal.direction == "long" else bar[low_col] <= signal.target_price
+            )
+            if hit_stop:
+                exit_ts, exit_price, outcome = bar[timestamp_col], signal.stop_price, "loss"
+                break
+            if hit_target:
+                exit_ts, exit_price, outcome = bar[timestamp_col], signal.target_price, "win"
+                break
+
+        if outcome == "open":
+            pnl_points = None
+            r_multiple = None
+            pnl_dollars = None
+            contracts = 1
+        else:
+            signed = 1 if signal.direction == "long" else -1
+            pnl_points = signed * (exit_price - signal.entry_price)
+            r_multiple = pnl_points / risk_points if risk_points else None
+
+            sizer = PositionSizer(account_size=equity[symbol], risk_pct_per_trade=risk_pct_per_trade)
+            sized = sized_and_costed_pnl(
+                signal.direction, signal.entry_price, exit_price, risk_points, multiplier, cost_model, sizer,
+            )
+            if sized is None:
+                continue
+            pnl_dollars, contracts = sized
+            equity[symbol] += pnl_dollars
+
+        trades_out[symbol].append(
+            Trade(
+                entry_ts=signal.entry_ts, exit_ts=exit_ts, direction=signal.direction,
+                entry_price=signal.entry_price, stop_price=signal.stop_price, target_price=signal.target_price,
+                exit_price=exit_price, outcome=outcome, risk_points=risk_points,
+                pnl_points=pnl_points, r_multiple=r_multiple, pnl_dollars=pnl_dollars, contracts=contracts,
+            )
+        )
+
+        if outcome == "open":
+            position_open_indefinitely[symbol] = True
+        else:
+            blocked_until_date[symbol] = pd.Timestamp(exit_ts).date()
+
+    return trades_out
+
+
 def compute_drawdown_curve(trades: list[Trade]) -> dict:
     """
     The full drawdown profile from ONE continuous equity curve — trades

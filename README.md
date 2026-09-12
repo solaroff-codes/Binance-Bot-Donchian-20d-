@@ -415,6 +415,24 @@ genuine train/test split were added:
   no-contribution version's own 15.7% — confirming contributions don't
   change the strategy's underlying risk profile, as expected. See
   `backtest/README.md`'s "Simulating the actual plan" section.
+- **A small, genuinely free improvement, tested "just for fun": periodic
+  rebalancing across the 3 sleeves.** Added
+  `backtest/engine.py`'s `simulate_portfolio_with_rebalancing()` — pools
+  and redistributes equity across BTC/SOL/BNB at scheduled dates,
+  simulating selling down whatever ran hardest and topping up the
+  laggards. Deliberately tested 4 cadences (monthly, quarterly,
+  semi-annual, annual) rather than just one, given how much of this
+  project has depended on catching a single-best-cell result — **every
+  cadence improved on no rebalancing, by a similar modest amount (CAGR
+  +0.4 to +0.7 points) with essentially unchanged drawdown**, which is
+  what makes this a credible real effect rather than a lucky pick.
+  Quarterly tested best (CAGR 12.31% → 12.99%, drawdown roughly flat at
+  15.6-15.8%), but the closeness of all four results is the actual
+  finding — quarterly is a reasonable practical default, not a provably
+  optimal one. Assumes sleeve equity is held in a stable unit (USDT)
+  between trades, so rebalancing is a free internal transfer, not a
+  taxable spot trade — matches how this project already models it. See
+  `backtest/README.md`'s "A small, genuinely free improvement" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

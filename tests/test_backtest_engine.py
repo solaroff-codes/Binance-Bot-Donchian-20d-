@@ -7,6 +7,7 @@ from backtest.engine import (
     Trade,
     compute_drawdown_curve,
     compute_metrics,
+    simulate_portfolio_with_rebalancing,
     simulate_trades,
     simulate_trades_compounding,
     simulate_trades_with_contributions,
@@ -427,6 +428,59 @@ def test_simulate_trades_with_contributions_matches_plain_compounding_when_empty
     plain = simulate_trades_compounding(df, [signal], multiplier=100, starting_capital=10_000, risk_pct_per_trade=0.02)
     assert with_none[0].contracts == plain[0].contracts
     assert with_none[0].pnl_dollars == pytest.approx(plain[0].pnl_dollars)
+
+
+def test_simulate_portfolio_with_rebalancing_redistributes_equity_between_sleeves():
+    dates = pd.date_range("2026-01-01", periods=5, freq="D")
+    df_a = pd.DataFrame(
+        {"date": dates, "high": [100, 108, 111, 113, 113], "low": [95, 97, 99, 104, 104],
+         "close": [100, 103, 110, 109, 109]}
+    )
+    df_b = pd.DataFrame(
+        {"date": dates, "high": [200, 200, 200, 200, 222], "low": [195, 195, 195, 195, 210],
+         "close": [200, 200, 200, 200, 220]}
+    )
+    sig_a = _signal(entry_ts=dates[0], entry_price=100, stop_price=95, target_price=110)
+    sig_b = _signal(entry_ts=dates[3], entry_price=200, stop_price=190, target_price=220)
+
+    # A wins first (day 2), growing its sleeve from 1,000 to 1,200 (10%
+    # risk, 5-point risk distance, 20 units, +$10/unit = +$200). A
+    # rebalance between the two trades pools both sleeves (1,200 + 1,000
+    # = 2,200) and splits evenly (1,100 each) -- B's trade must size off
+    # that rebalanced 1,100, not its own un-rebalanced 1,000: with
+    # rebalancing, floor(1,100*10%/10)=11 units; without, floor(1,000*10%/10)=10.
+    rebalance_dates = [pd.Timestamp("2026-01-03T12:00:00")]
+
+    trades = simulate_portfolio_with_rebalancing(
+        assets={"A": (df_a, 1.0, [sig_a]), "B": (df_b, 1.0, [sig_b])},
+        starting_capital_per_asset=1_000.0, risk_pct_per_trade=0.10, rebalance_dates=rebalance_dates,
+    )
+
+    a_trade = trades["A"][0]
+    assert a_trade.outcome == "win"
+    assert a_trade.contracts == 20  # (1,000 * 10%) / 5 risk
+    assert a_trade.pnl_dollars == pytest.approx(200.0)
+
+    b_trade = trades["B"][0]
+    assert b_trade.outcome == "win"
+    assert b_trade.contracts == 11  # (1,100 * 10%) / 10 risk -- the rebalanced base, not B's own 1,000
+    assert b_trade.pnl_dollars == pytest.approx(220.0)
+
+
+def test_simulate_portfolio_with_rebalancing_no_rebalance_dates_matches_independent_compounding():
+    dates = pd.date_range("2026-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"date": dates, "high": [100, 106, 106], "low": [98, 100, 100], "close": [100, 105, 105]}
+    )
+    signal = _signal(entry_ts=dates[0], stop_price=99, target_price=105)
+
+    trades = simulate_portfolio_with_rebalancing(
+        assets={"A": (df, 100.0, [signal])}, starting_capital_per_asset=10_000.0,
+        risk_pct_per_trade=0.02, rebalance_dates=[],
+    )
+    plain = simulate_trades_compounding(df, [signal], multiplier=100, starting_capital=10_000, risk_pct_per_trade=0.02)
+    assert trades["A"][0].contracts == plain[0].contracts
+    assert trades["A"][0].pnl_dollars == pytest.approx(plain[0].pnl_dollars)
 
 
 def test_simulate_trades_compounding_skips_when_equity_cannot_size_even_one_unit():
