@@ -1597,3 +1597,109 @@ configuration tested anywhere in this project that combines a real edge
 with a survivable risk profile. Turning $1,000 into a lot of money
 quickly and turning $1,000 into more money reliably are, on this
 evidence, different goals — the second is what's been built here.
+
+## Expanding the coin universe: is there a better top 3?
+
+Decided to grow the account with contributions over time instead of
+leverage, keeping to 3-5% risk. Natural follow-up: are BTC/SOL/BNB
+actually the best three coins available, or just the first three tried?
+`scripts/run_candidate_expansion_test.py` gives five more established,
+long-Binance-history coins — LTC, ADA, DOGE, LINK, TRX, chosen for
+history length before looking at any result, same discipline as BNB/XRP
+— the identical full stress test: the 2022 bear market, both halves of a
+second holdout, the original-style test window, and the true continuous
+drawdown (not chopped by calendar year).
+
+**A bug in this script's first version is worth naming rather than
+quietly fixing**: it required every individual calendar year to be
+profitable to pass, not just the 4 core stress-test windows BNB was
+actually held to (BNB itself has a losing calendar year — 2026, PF 0.57
+— and still passed). That wrong bar failed all five candidates on the
+first run. Corrected to the bar actually used throughout this project
+(the 4 core windows + drawdown recovery, calendar years as context only)
+before reporting anything below.
+
+| Symbol | Bear mkt | 2nd holdout (both halves) | Original test | Full PF | CAGR (1% fixed) | Max DD | Recovered? | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| **DOGE** | 1.46 | 1.21 / 1.46 | 3.16 | 1.56 | 3.50% | 7.0% | Yes (~3.5 yrs) | **PASS** |
+| TRX | 1.21 | 1.09 / 1.25 | 1.13 | 1.15 | 1.42% | 6.1% | Yes (~1.5 yrs) | PASS (weak) |
+| ADA | 1.04 | 1.08 / 1.70 | 1.07 | 1.25 | 2.01% | 5.7% | Yes | PASS (weak) |
+| LINK | 0.65 | 1.23 / 0.82 | 1.46 | 1.13 | 0.80% | 9.8% | Yes | FAIL |
+| LTC | 1.75 | 2.51 / 0.50 | 1.31 | 1.02 | 0.16% | 13.2% | **Never** | FAIL |
+
+**DOGE is a genuine, strong fourth candidate** — full-period profit
+factor 1.56 and 3.50% CAGR (at 1% fixed sizing) sit right in the same
+cluster as BTC (1.56/3.9%), SOL (1.51/3.9%), and BNB (1.53/3.8%), and it
+passes every core stress window solidly, including the strongest
+original-test-window result of any coin tested (PF 3.16). The tradeoff:
+its drawdown took roughly 3.5 years to fully recover (peak 2021-04-16,
+trough 2023-11-21, recovered 2024-11-12) — a much longer, rougher ride
+than BTC's ~8.5 months, SOL's ~1 year, or BNB's ~10 months, consistent
+with meme-coin-driven volatility (2020 and 2022 were both losing calendar
+years for it).
+
+**TRX and ADA pass the same bar but with a real, meaningfully weaker
+edge** — CAGR 1.4-2.0% vs. the 3.5-3.9% cluster BTC/SOL/BNB/DOGE all sit
+in, and thin margins throughout (several core windows barely above 1.0,
+e.g. ADA's bear-market PF of 1.04). Technically real, not noise by this
+project's own bar, but not competitive with the existing four.
+
+**LINK and LTC fail outright** — LINK loses money in the bear market
+(PF 0.65) and the second holdout's later half (0.82), the two windows
+that matter most for catching a fake edge. LTC's later holdout half
+sign-flips to a loss (PF 0.50) and its drawdown never recovered within
+the available data — the same red flag ETH and XRP showed.
+
+### Does adding DOGE actually help the portfolio?
+
+`scripts/run_four_asset_portfolio_test.py`, same $1,000 real account, 3%
+risk, full compounding:
+
+| Portfolio | Final | CAGR | Max drawdown |
+|---|---|---|---|
+| BTC+SOL+BNB (current) | $2,006 | 12.31% | 15.56% |
+| BTC+SOL+BNB+DOGE | $1,973 | 12.00% | 12.95% |
+| BTC alone, full $1,000 | $2,031 | 12.54% | 25.01% |
+
+Adding DOGE trades a small amount of return (12.31% → 12.00% CAGR) for a
+real reduction in drawdown (15.56% → 12.95%) — the expected result of
+adding a genuinely-passing but individually-weaker-edge asset: it
+smooths the ride, it doesn't raise the return. Concentrating fully in
+BTC alone does the opposite — slightly higher CAGR (12.54%), notably
+higher drawdown (25.01%, closer to a single-asset risk profile). Neither
+direction is a clear win for "higher returns" specifically — diversifying
+further or concentrating are both risk/smoothness trades, not return
+levers, consistent with every other diversification result in this file.
+
+### What about actively trading one, holding the others?
+
+Tested directly (`scripts/run_active_vs_holdblend_test.py`) rather than
+guessed at: BTC traded actively (3% risk, compounding) with SOL and BNB
+held as pure buy-and-hold instead of run through the strategy.
+
+| Portfolio | Final | CAGR | Max drawdown |
+|---|---|---|---|
+| All 3 actively traded (current) | $2,006 | 12.31% | 15.56% |
+| BTC active, SOL+BNB buy-and-hold | **$19,783** | **64.47%** | **2,898%** |
+| All 3 buy-and-hold (reference) | $21,588 | 66.89% | 3,046% |
+
+The return is enormous — but the drawdown figures above are not a typo
+or a units error: buy-and-hold SOL/BNB rode large enough multi-year rallies
+that their eventual 96.3%/70.9% percentage drawdowns landed on a peak
+many multiples of the original $1,000 stake, so the dollar decline alone
+dwarfs the starting capital several times over. This is not a "big dip
+you sit through" the way the active strategy's 15.56% drawdown is — it's
+a categorically different risk, and it does not fit inside the 3-5% risk
+framework this whole project has been built around. Reported because it
+was asked, not because it's a recommendation.
+
+### The honest recommendation
+
+**Stay with BTC+SOL+BNB.** DOGE is a real, legitimate fourth candidate —
+worth keeping in mind if the goal shifts toward smoother drawdown rather
+than higher return — but it doesn't increase return, and the current
+three remain the tightest, most consistent cluster found across ten
+coins tested in this project (BTC/ETH/SOL/BNB/XRP/LTC/ADA/DOGE/LINK/TRX).
+Within the 3-5% risk / compounding framework already chosen, the actual
+lever for higher absolute returns over time is exactly what was already
+decided: contributing more capital, not a different coin combination.

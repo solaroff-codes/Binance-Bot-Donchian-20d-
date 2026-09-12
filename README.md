@@ -372,6 +372,31 @@ genuine train/test split were added:
   configuration remains the only one on record here with a real edge and
   a survivable risk profile. See `backtest/README.md`'s "How far can this
   actually go?" section.
+- **Decided to grow the account with contributions instead of leverage —
+  tested 5 more coins to see if BTC/SOL/BNB is really the best top 3.**
+  LTC, ADA, DOGE, LINK, TRX — established, long-Binance-history coins,
+  chosen for that reason before looking at results, same discipline as
+  BNB/XRP. Caught and fixed a real bug in the first test run: it required
+  every calendar year to be profitable, a stricter bar than BNB itself
+  was ever held to (BNB has a losing 2026, PF 0.57, and still passed) —
+  corrected before reporting anything. **DOGE passes the full stress
+  test cleanly** and sits in the same performance cluster as BTC/SOL/BNB
+  (PF 1.56, 3.5% CAGR at 1% fixed sizing) — but its drawdown took ~3.5
+  years to recover, much rougher than the current three. TRX and ADA
+  technically pass but with a real, meaningfully weaker edge (1.4-2.0%
+  CAGR vs. the 3.5-3.9% cluster). LINK and LTC fail outright (LINK loses
+  in the bear market itself; LTC's drawdown never recovered — the same
+  red flag ETH/XRP showed). Tested adding DOGE as a 4th sleeve: trades a
+  little return for a smoother ride (CAGR 12.31%→12.00%, drawdown
+  15.56%→12.95%) — not a return lever. Tested actively trading BTC while
+  buy-and-holding SOL+BNB instead: return is enormous (64.5% CAGR) but
+  the drawdown, in dollar terms, is 20-30x the original stake at the
+  worst point (buy-and-hold has no stop-loss) — doesn't fit the 3-5% risk
+  framework, reported because it was asked, not recommended. **Sticking
+  with BTC+SOL+BNB** — the tightest, most consistent cluster across all
+  ten coins tested; the real lever for more return within the chosen risk
+  framework is contributing capital, not a different coin combination.
+  See `backtest/README.md`'s "Expanding the coin universe" section.
 
 Everything above this in the project's history — the "PF 9-45" sweep
 results, the confluence-strategy "PF ~9-14" figures, the combined

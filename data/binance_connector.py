@@ -40,10 +40,10 @@ INTERVAL_MAP = {
 }
 
 # This project's short symbol -> Binance's USDT trading pair. BNB and XRP
-# added later (see scripts/run_crypto_portfolio_expansion.py) as
-# additional, long-history (listed on Binance since well before 2020)
+# added first, then LTC/ADA/DOGE/LINK/TRX -- all chosen the same way,
+# as additional, long-history (listed on Binance since well before 2020)
 # large-cap coins to test the already-validated fixed Donchian rule
-# against, chosen for history length before looking at any result -- not
+# against, decided for history length before looking at any result -- not
 # picked after the fact for looking good.
 SYMBOL_MAP = {
     "BTC": "BTCUSDT",
@@ -51,6 +51,11 @@ SYMBOL_MAP = {
     "SOL": "SOLUSDT",
     "BNB": "BNBUSDT",
     "XRP": "XRPUSDT",
+    "LTC": "LTCUSDT",
+    "ADA": "ADAUSDT",
+    "DOGE": "DOGEUSDT",
+    "LINK": "LINKUSDT",
+    "TRX": "TRXUSDT",
 }
 
 _DAILY_OR_LARGER = {"1 month", "1 week", "1 day"}

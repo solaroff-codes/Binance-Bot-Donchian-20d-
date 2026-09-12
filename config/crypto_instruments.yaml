@@ -54,3 +54,38 @@ XRP:
   tick_size: 0.0001
   micro_multiplier: 0.0001
   commission_pct: 0.001
+
+LTC:
+  description: "Litecoin (LTCUSDT spot)"
+  multiplier: 1
+  tick_size: 0.01
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+ADA:
+  description: "Cardano (ADAUSDT spot)"
+  multiplier: 1
+  tick_size: 0.0001
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+DOGE:
+  description: "Dogecoin (DOGEUSDT spot)"
+  multiplier: 1
+  tick_size: 0.00001
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+LINK:
+  description: "Chainlink (LINKUSDT spot)"
+  multiplier: 1
+  tick_size: 0.001
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
+
+TRX:
+  description: "TRON (TRXUSDT spot)"
+  multiplier: 1
+  tick_size: 0.00001
+  micro_multiplier: 0.0001
+  commission_pct: 0.001
