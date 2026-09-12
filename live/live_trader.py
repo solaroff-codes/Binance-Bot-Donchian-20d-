@@ -243,6 +243,15 @@ def process_symbol(symbol: str, client: BinanceFuturesClient, state: dict) -> No
 
 def run_once() -> None:
     print(f"{'DRY RUN -- ' if DRY_RUN else ''}Binance Futures Testnet live trader")
+    # Created unconditionally (not just when a trade actually closes and
+    # append_trade_log() runs) so `git add live/state/ live/output/` in
+    # the GitHub Actions workflow always has something to find, even on
+    # a day with no trade activity -- a missing live/output/ directory
+    # otherwise fails that add with "pathspec did not match any files"
+    # and kills the whole commit-back step. Confirmed directly: this is
+    # exactly what happened on the first real (non-crashing) run.
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     state = load_state()
     try:
         client = BinanceFuturesClient(testnet=True)
